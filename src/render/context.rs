@@ -4,6 +4,16 @@ use raylib::math::Vector3;
 use super::{Camera, CameraRays};
 use crate::math::Mat4;
 
+/// Lo que es igual para todos los fragmentos de un objeto en un cuadro.
+#[derive(Clone, Copy, Debug)]
+pub struct ObjectContext {
+    /// Dirección del origen del objeto hacia el sol, en el espacio del objeto.
+    /// Para un planeta el sol está tan lejos que sirve para toda su superficie,
+    /// y no cambia aunque el planeta gire: es la que necesitan los patrones que
+    /// se calculan con `fragment.object_position`.
+    pub sun_direction: Vector3,
+}
+
 /// Lo que es igual para todos los objetos de un cuadro. Lo que cambia por
 /// objeto (matriz de modelo, material) viaja en `SceneObject`.
 #[allow(dead_code, reason = "API pública que todavía no usa la escena de prueba")]

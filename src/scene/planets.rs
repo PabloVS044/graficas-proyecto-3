@@ -51,7 +51,7 @@ pub const SUN: SunSpec = SunSpec { radius: 12.0, material: Material::Emissive { 
 /// Ordenados del más cercano al sol al más lejano.
 pub const PLANETS: &[PlanetSpec] = &[
     PlanetSpec {
-        name: "Planeta 1",
+        name: "Jungla",
         radius: 6.0,
         orbit_radius: 60.0,
         orbit_speed: 0.05,
@@ -59,7 +59,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: 0.02,
         spin_speed: 0.3,
         axial_tilt: 0.3,
-        material: Material::Lambert { albedo: color(0.25, 0.6, 0.3) },
+        material: Material::Jungle,
         moons: &[],
     },
     PlanetSpec {

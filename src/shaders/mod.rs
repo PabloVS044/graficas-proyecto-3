@@ -6,12 +6,13 @@
 //! en el `match` de abajo.
 
 mod basic;
+mod jungle;
 mod ship;
 pub mod noise_helpers;
 
 use raylib::math::Vector3;
 
-use crate::render::{Fragment, FrameContext};
+use crate::render::{Fragment, FrameContext, ObjectContext};
 
 /// Cómo se ve un objeto.
 #[derive(Clone, Copy, Debug)]
@@ -20,6 +21,9 @@ pub enum Material {
     Lambert { albedo: Vector3 },
     /// Emite su propio color, no recibe luz. Provisional para el sol.
     Emissive { color: Vector3 },
+    /// Planeta de selva con mar, ríos, roca, nubes con sombra, reflejo en el
+    /// agua y luces de noche.
+    Jungle,
     /// Casco desgastado con franjas rojas y motores encendidos.
     /// `throttle` va de 0 (reposo) a 1 (turbo).
     Ship { throttle: f32 },
@@ -28,11 +32,12 @@ pub enum Material {
     Normals,
 }
 
-pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext) -> Vector3 {
+pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) -> Vector3 {
     match *material {
         Material::Lambert { albedo } => basic::lambert(albedo, fragment, frame),
         Material::Emissive { color } => color,
         Material::Ship { throttle } => ship::shade(fragment, frame, throttle),
+        Material::Jungle => jungle::shade(fragment, frame, object),
         Material::Normals => basic::normals(fragment),
     }
 }

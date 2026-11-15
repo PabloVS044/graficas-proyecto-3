@@ -164,6 +164,20 @@ impl Mat4 {
         let v = self.transform(Vector4::new(d.x, d.y, d.z, 0.0));
         Vector3::new(v.x, v.y, v.z)
     }
+
+    /// Lleva una dirección del mundo al espacio del objeto, sin invertir la
+    /// matriz completa. Con rotación y escala uniforme, la inversa de la parte
+    /// 3x3 es su transpuesta dividida entre la escala al cuadrado; como el
+    /// resultado se normaliza, la escala no importa.
+    pub fn inverse_rotate_direction(&self, d: Vector3) -> Vector3 {
+        let column = |c: usize| Vector3::new(self.at(0, c), self.at(1, c), self.at(2, c));
+        Vector3::new(column(0).dot(d), column(1).dot(d), column(2).dot(d)).normalize()
+    }
+
+    /// Dónde queda el origen del objeto en el mundo.
+    pub fn origin(&self) -> Vector3 {
+        Vector3::new(self.m[12], self.m[13], self.m[14])
+    }
 }
 
 impl Mul for Mat4 {
@@ -235,6 +249,18 @@ mod tests {
         assert!((far - 1.0).abs() < 1e-4);
         // `w` es la distancia frente a la cámara.
         assert!((w_near - 0.1).abs() < 1e-6 && (w_far - 100.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn inverse_rotation_undoes_the_model_rotation() {
+        let model = Mat4::translation(Vector3::new(40.0, 0.0, 3.0))
+            * Mat4::rotation_z(0.4)
+            * Mat4::rotation_y(2.3)
+            * Mat4::scale(6.0);
+        let local = Vector3::new(0.3, -0.5, 0.8).normalize();
+        let world = model.transform_direction(local).normalize();
+        assert!(close(model.inverse_rotate_direction(world), local));
+        assert!(close(model.origin(), Vector3::new(40.0, 0.0, 3.0)));
     }
 
     #[test]

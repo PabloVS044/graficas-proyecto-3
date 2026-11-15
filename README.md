@@ -9,7 +9,8 @@ rasterización, la prueba de profundidad y los shaders están escritos en este
 repositorio.
 
 **Estado:** renderer, vuelo de la nave en tercera persona y sistema solar con cinco
-planetas y una luna. Por ahora los planetas son de color liso.
+planetas y una luna. El primer planeta (Jungla) tiene su shader; los demás son de color
+liso por ahora.
 
 ## Cómo se ejecuta
 
@@ -20,7 +21,7 @@ ventanas.
 ```bash
 cargo run --release                          # ventana
 cargo run --release -- --benchmark           # ms por cuadro en poses fijas de la nave, sin ventana
-cargo run --release -- --screenshot captura  # captura-inicio.png, ..., captura-nave-frente.png
+cargo run --release -- --screenshot captura  # poses de la nave, cada planeta y la nave de cerca
 cargo test --release                         # pruebas
 ```
 
@@ -93,7 +94,10 @@ Para que las tres partes del proyecto encajen:
 - **Un shader:** variante nueva en `shaders::Material` con sus parámetros, archivo
   nuevo en `src/shaders/` con su función, y una rama en `shaders::shade`. Los patrones
   se calculan sobre `fragment.object_position` y `fragment.object_normal` para que se
-  muevan y giren con el objeto; la iluminación usa `fragment.normal` (mundo).
+  muevan y giren con el objeto; la iluminación usa `fragment.normal` (mundo). Para
+  efectos que dependen del sol en el espacio del objeto (sombras de nubes, lado de
+  noche), el shader recibe `ObjectContext::sun_direction`. Ejemplo completo:
+  `src/shaders/jungle.rs`.
 - **Un planeta:** agregar una entrada a `PLANETS` en `src/scene/planets.rs` con su
   radio, órbita, giro y material. Con eso ya orbita, gira, se dibuja y la nave choca con
   él. `cargo test` revisa que su órbita no choque con las vecinas.
@@ -116,5 +120,5 @@ Ryzen 7 8845HS, 800×450, `--benchmark` (varía según el estado del equipo):
 | Pose de la nave | ms por cuadro |
 |---|---:|
 | Inicio | 5.0 |
-| Junto a la superficie del primer planeta | 10.7 |
-| Junto al sol | 8.4 |
+| Junto a la superficie de Jungla | 22.5 |
+| Junto al sol | 8.5 |

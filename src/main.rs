@@ -226,6 +226,23 @@ fn screenshots(world: &World, prefix: &str) {
     framebuffer.export(&path);
     println!("Captura guardada en {path}");
 
+    // Cada planeta visto desde el lado del sol, un poco corrido para que se
+    // vea la línea entre el día y la noche.
+    for planet in PLANETS {
+        let center = world.scene.planet_center(planet, 0.0);
+        let towards_sun = -center;
+        let view = OrbitController {
+            target: center,
+            yaw: towards_sun.x.atan2(towards_sun.z) + 0.6,
+            pitch: 0.25,
+            distance: planet.radius * 3.2,
+        };
+        world.render(&mut framebuffer, &view.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE), 0.0, &ship);
+        let path = format!("{prefix}-{}.png", planet.name.to_lowercase().replace(' ', "-"));
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
+    }
+
     // La nave de cerca, en tres cuartos y por detrás, con los motores a fondo.
     let mut ship = world.scene.ship_start();
     ship.throttle = 1.0;
