@@ -63,6 +63,9 @@ Para que las tres partes del proyecto encajen:
   misma matriz y solo se normalizan.
 - **Triángulos** antihorarios vistos desde afuera. El rasterizador descarta los que dan
   la espalda.
+- **Recorte:** los triángulos que cruzan el plano cercano se cortan antes de proyectar,
+  así la cámara puede pegarse a una superficie sin que aparezcan agujeros.
+- **Profundidad:** el búfer guarda `1/w`. Más grande es más cerca y 0 es el infinito.
 - **Mallas** sin índices: cada tres vértices seguidos son un triángulo.
 - **Tiempo:** todo lo animado depende de `FrameContext::time` (segundos de
   simulación), nunca del número de cuadro.
