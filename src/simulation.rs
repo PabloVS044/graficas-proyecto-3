@@ -6,7 +6,7 @@
 //! duración fija: en una computadora lenta se dan varios pasos por cuadro, y
 //! en una rápida a veces ninguno, pero el resultado es el mismo.
 
-use crate::scene::DemoScene;
+use crate::scene::SolarSystem;
 use crate::ship::{ChaseCamera, Ship, ShipInput};
 
 /// Duración de un paso de física, en segundos.
@@ -25,19 +25,19 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new(scene: &DemoScene) -> Simulation {
+    pub fn new(scene: &SolarSystem) -> Simulation {
         let ship = scene.ship_start();
         Simulation { time: 0.0, ship, camera: ChaseCamera::behind(&ship), paused: false, accumulator: 0.0 }
     }
 
     /// Vuelve la nave al inicio sin detener las órbitas.
-    pub fn reset_ship(&mut self, scene: &DemoScene) {
+    pub fn reset_ship(&mut self, scene: &SolarSystem) {
         self.ship = scene.ship_start();
         self.camera = ChaseCamera::behind(&self.ship);
     }
 
     /// Consume `frame_time` segundos reales en pasos fijos.
-    pub fn advance(&mut self, scene: &DemoScene, input: &ShipInput, frame_time: f32) {
+    pub fn advance(&mut self, scene: &SolarSystem, input: &ShipInput, frame_time: f32) {
         if self.paused {
             return;
         }
@@ -58,7 +58,7 @@ mod tests {
     use super::*;
 
     /// Vuela 3 segundos acelerando y girando, dibujando a `fps` cuadros por segundo.
-    fn fly(scene: &DemoScene, input: &ShipInput, fps: f32) -> Simulation {
+    fn fly(scene: &SolarSystem, input: &ShipInput, fps: f32) -> Simulation {
         let mut simulation = Simulation::new(scene);
         for _ in 0..(3.0 * fps).round() as usize {
             simulation.advance(scene, input, 1.0 / fps);
@@ -71,7 +71,7 @@ mod tests {
     /// un paso pendiente en el acumulador; se completa antes de comparar.
     #[test]
     fn flight_does_not_depend_on_frame_rate() {
-        let scene = DemoScene::load().unwrap();
+        let scene = SolarSystem::load().unwrap();
         let input = ShipInput { thrust: 1.0, yaw: 0.6, pitch: 0.3, roll: -0.4, boost: true };
         let mut slow = fly(&scene, &input, 30.0);
         let mut fast = fly(&scene, &input, 144.0);
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn pausing_freezes_the_world() {
-        let scene = DemoScene::load().unwrap();
+        let scene = SolarSystem::load().unwrap();
         let mut simulation = Simulation::new(&scene);
         simulation.paused = true;
         simulation.advance(&scene, &ShipInput { thrust: 1.0, ..ShipInput::default() }, 1.0);
