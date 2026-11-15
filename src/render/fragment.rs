@@ -12,6 +12,9 @@ pub struct Fragment {
     /// procedurales se calculan aquí para que se muevan con el objeto.
     pub object_position: Vector3,
     pub world_position: Vector3,
+    /// Normal interpolada y normalizada, en el espacio del objeto. No cambia
+    /// cuando el objeto gira.
+    pub object_normal: Vector3,
     /// Normal interpolada y normalizada, en coordenadas de mundo.
     pub normal: Vector3,
     pub uv: Vector2,

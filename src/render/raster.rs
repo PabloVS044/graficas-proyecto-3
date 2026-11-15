@@ -120,6 +120,7 @@ pub fn rasterize(vertices: &[ScreenVertex; 3], width: usize, height: usize, out:
                 depth: inverse_w,
                 object_position: v0.object_position * p0 + v1.object_position * p1 + v2.object_position * p2,
                 world_position: v0.world_position * p0 + v1.world_position * p1 + v2.world_position * p2,
+                object_normal: (v0.object_normal * p0 + v1.object_normal * p1 + v2.object_normal * p2).normalize(),
                 normal: (v0.normal * p0 + v1.normal * p1 + v2.normal * p2).normalize(),
                 uv: v0.uv * p0 + v1.uv * p1 + v2.uv * p2,
             });
