@@ -31,7 +31,9 @@ Se ejecuta desde la raíz del repositorio: los modelos se cargan de `assets/`.
 | Tecla | Acción |
 |---|---|
 | `W` / `S` | Acelerar / frenar |
-| Flechas | Dirigir la punta (arriba, abajo, izquierda, derecha) |
+| Flechas ↓ / ↑ | Subir / bajar la punta, como la palanca de un avión (halar sube, empujar baja) |
+| Flechas ← / → | Girar a la izquierda / derecha |
+| `I` | Invertir las flechas arriba y abajo (arriba sube) |
 | `A` / `D` | Alabear (girar sobre su eje) |
 | `Shift` | Turbo |
 | `C` | Inspeccionar: orbitar alrededor de la nave con flechas y rueda; otra vez `C` para volver |

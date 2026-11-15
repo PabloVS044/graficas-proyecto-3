@@ -17,7 +17,7 @@ use config::{FAR_PLANE, FIELD_OF_VIEW, NEAR_PLANE, NOISE_SEED, RENDER_HEIGHT, RE
 use math::Quat;
 use render::{Background, Camera, FrameContext, Framebuffer, OrbitController, RenderStats};
 use scene::DemoScene;
-use ship::{ChaseCamera, Ship, ShipInput};
+use ship::{ChaseCamera, PitchControl, Ship, ShipInput};
 use simulation::Simulation;
 
 /// Todo lo que se carga una sola vez al inicio.
@@ -91,12 +91,16 @@ fn run_window(world: &World) {
     let mut simulation = Simulation::new(&world.scene);
     let mut view = View::Chase;
     let mut inspect = OrbitController { distance: 10.0, ..OrbitController::new() };
+    let mut pitch_control = PitchControl::Aircraft;
 
     while !window.window_should_close() {
         let frame_time = window.get_frame_time();
 
         if window.is_key_pressed(KeyboardKey::KEY_SPACE) {
             simulation.paused = !simulation.paused;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_I) {
+            pitch_control = pitch_control.toggled();
         }
         if window.is_key_pressed(KeyboardKey::KEY_C) {
             view = if view == View::Chase { View::Inspect } else { View::Chase };
@@ -107,7 +111,7 @@ fn run_window(world: &World) {
                 if window.is_key_pressed(KeyboardKey::KEY_R) {
                     simulation.reset_ship(&world.scene);
                 }
-                ship::read_input(&window)
+                ship::read_input(&window, pitch_control)
             }
             View::Inspect => {
                 inspect.update(&window, frame_time);
@@ -131,11 +135,18 @@ fn run_window(world: &World) {
 
         let mut drawing = window.begin_drawing(&thread);
         framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
-        draw_hud(&mut drawing, &stats, render_ms, &simulation, view);
+        draw_hud(&mut drawing, &stats, render_ms, &simulation, view, pitch_control);
     }
 }
 
-fn draw_hud(drawing: &mut RaylibDrawHandle, stats: &RenderStats, render_ms: f32, simulation: &Simulation, view: View) {
+fn draw_hud(
+    drawing: &mut RaylibDrawHandle,
+    stats: &RenderStats,
+    render_ms: f32,
+    simulation: &Simulation,
+    view: View,
+    pitch_control: PitchControl,
+) {
     const SIZE: i32 = 20;
     let window_height = (RENDER_HEIGHT * WINDOW_SCALE) as i32;
 
@@ -145,12 +156,13 @@ fn draw_hud(drawing: &mut RaylibDrawHandle, stats: &RenderStats, render_ms: f32,
         drawing.draw_text(line, 10, 58 + row as i32 * 24, SIZE, Color::RAYWHITE);
     }
     drawing.draw_text(&format!("velocidad: {:.1}", simulation.ship.speed()), 10, 134, SIZE, Color::SKYBLUE);
+    drawing.draw_text(&format!("cabeceo: {} (I cambia)", pitch_control.label()), 10, 158, SIZE, Color::SKYBLUE);
     if simulation.paused {
-        drawing.draw_text("PAUSA", 10, 158, SIZE, Color::YELLOW);
+        drawing.draw_text("PAUSA", 10, 182, SIZE, Color::YELLOW);
     }
 
     let controls = match view {
-        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir   A/D: girar   Shift: turbo   C: inspeccionar   R: reiniciar   Espacio: pausa",
+        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   C: inspeccionar   R: reiniciar   Espacio: pausa",
         View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   Espacio: pausa",
     };
     drawing.draw_text(controls, 10, window_height - 30, SIZE, Color::LIGHTGRAY);

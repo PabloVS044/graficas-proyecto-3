@@ -11,7 +11,7 @@ mod camera;
 mod controls;
 
 pub use camera::ChaseCamera;
-pub use controls::read_input;
+pub use controls::{PitchControl, read_input};
 
 use raylib::math::Vector3;
 
