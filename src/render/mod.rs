@@ -16,7 +16,7 @@ mod stats;
 
 pub use background::Background;
 pub use camera::{Camera, CameraRays, OrbitController};
-pub use context::FrameContext;
+pub use context::{FrameContext, ObjectContext};
 pub use fragment::Fragment;
 pub use framebuffer::Framebuffer;
 pub use stats::RenderStats;

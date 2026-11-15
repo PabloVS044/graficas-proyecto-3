@@ -8,7 +8,7 @@ use raylib::math::{Vector2, Vector3, Vector4};
 use super::clip::{self, ClipVertex, Clipped};
 use super::fragment::Fragment;
 use super::raster::{self, Outcome};
-use super::{FrameContext, Framebuffer, RenderStats};
+use super::{FrameContext, Framebuffer, ObjectContext, RenderStats};
 use crate::math::Mat4;
 use crate::mesh::Vertex;
 use crate::scene::SceneObject;
@@ -136,9 +136,12 @@ pub fn draw_object(framebuffer: &mut Framebuffer, object: &SceneObject, frame: &
         }
     }
 
+    let to_sun = frame.light_position - object.model.origin();
+    let object_context = ObjectContext { sun_direction: object.model.inverse_rotate_direction(to_sun) };
+
     let shaded: Vec<(usize, Vector3)> = visible
         .par_iter()
-        .map(|(index, fragment)| (*index, shaders::shade(&object.material, fragment, frame)))
+        .map(|(index, fragment)| (*index, shaders::shade(&object.material, fragment, frame, &object_context)))
         .collect();
 
     // En orden: si un píxel se sombreó dos veces, gana el último, que es el más cercano.
