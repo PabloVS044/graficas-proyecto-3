@@ -6,6 +6,7 @@
 //! en el `match` de abajo.
 
 mod basic;
+mod ship;
 pub mod noise_helpers;
 
 use raylib::math::Vector3;
@@ -19,6 +20,9 @@ pub enum Material {
     Lambert { albedo: Vector3 },
     /// Emite su propio color, no recibe luz. Provisional para el sol.
     Emissive { color: Vector3 },
+    /// Casco desgastado con franjas rojas y motores encendidos.
+    /// `throttle` va de 0 (reposo) a 1 (turbo).
+    Ship { throttle: f32 },
     /// Pinta la normal como color. Sirve para revisar geometría.
     #[allow(dead_code, reason = "API pública que todavía no usa la escena de prueba")]
     Normals,
@@ -28,6 +32,7 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext) -> 
     match *material {
         Material::Lambert { albedo } => basic::lambert(albedo, fragment, frame),
         Material::Emissive { color } => color,
+        Material::Ship { throttle } => ship::shade(fragment, frame, throttle),
         Material::Normals => basic::normals(fragment),
     }
 }
@@ -38,7 +43,6 @@ pub fn color(r: f32, g: f32, b: f32) -> Vector3 {
 }
 
 /// Interpolación lineal entre dos colores.
-#[allow(dead_code, reason = "API pública que todavía no usa la escena de prueba")]
 pub fn mix(a: Vector3, b: Vector3, amount: f32) -> Vector3 {
     a * (1.0 - amount) + b * amount
 }

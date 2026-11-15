@@ -37,6 +37,12 @@ const ROLL_RATE: f32 = 2.2;
 /// rígido; más bajo, más pesado.
 const TURN_RESPONSE: f32 = 5.0;
 
+/// Qué tan rápido los motores alcanzan la potencia pedida.
+const THROTTLE_RESPONSE: f32 = 4.0;
+/// Potencia de los motores en reposo, acelerando y con turbo (de 0 a 1).
+const THROTTLE_IDLE: f32 = 0.1;
+const THROTTLE_CRUISE: f32 = 0.6;
+
 /// Radio de la esfera que representa a la nave en las colisiones.
 pub const COLLISION_RADIUS: f32 = 1.2;
 
@@ -61,11 +67,14 @@ pub struct Ship {
     pub orientation: Quat,
     /// Radianes por segundo alrededor de los ejes locales `x`, `y`, `z`.
     pub angular_velocity: Vector3,
+    /// Potencia de los motores, de 0 (reposo) a 1 (turbo). Solo es visual:
+    /// la lee el shader de la nave.
+    pub throttle: f32,
 }
 
 impl Ship {
     pub fn new(position: Vector3, orientation: Quat) -> Ship {
-        Ship { position, velocity: Vector3::zero(), orientation, angular_velocity: Vector3::zero() }
+        Ship { position, velocity: Vector3::zero(), orientation, angular_velocity: Vector3::zero(), throttle: THROTTLE_IDLE }
     }
 
     pub fn forward(&self) -> Vector3 {
@@ -84,6 +93,7 @@ impl Ship {
     pub fn step(&mut self, input: &ShipInput, colliders: &[Collider], dt: f32) {
         self.turn(input, dt);
         self.accelerate(input, dt);
+        self.update_throttle(input, dt);
         self.position += self.velocity * dt;
         self.collide(colliders);
     }
@@ -126,6 +136,15 @@ impl Ship {
         if speed > max_speed {
             self.velocity *= max_speed / speed;
         }
+    }
+
+    fn update_throttle(&mut self, input: &ShipInput, dt: f32) {
+        let target = match (input.thrust > 0.0, input.boost) {
+            (true, true) => 1.0,
+            (true, false) => THROTTLE_CRUISE,
+            (false, _) => THROTTLE_IDLE,
+        };
+        self.throttle += (target - self.throttle) * (1.0 - (-THROTTLE_RESPONSE * dt).exp());
     }
 
     /// Si la nave entra en un cuerpo, se empuja a su superficie y pierde la
@@ -180,6 +199,17 @@ mod tests {
         assert!(early > 0.0 && early < 5.0);
         assert!((ship.speed() - MAX_SPEED).abs() < 0.5);
         assert!(ship.velocity.z > 0.0, "avanza hacia la punta");
+    }
+
+    #[test]
+    fn engines_glow_more_with_boost() {
+        let mut ship = ship();
+        run(&mut ship, FORWARD, 2.0);
+        let cruising = ship.throttle;
+        run(&mut ship, ShipInput { boost: true, ..FORWARD }, 2.0);
+        assert!(cruising > THROTTLE_IDLE && ship.throttle > cruising);
+        run(&mut ship, ShipInput::default(), 3.0);
+        assert!((ship.throttle - THROTTLE_IDLE).abs() < 0.01);
     }
 
     #[test]
