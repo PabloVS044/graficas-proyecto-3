@@ -16,13 +16,14 @@ use raylib::prelude::*;
 use config::{FAR_PLANE, FIELD_OF_VIEW, NEAR_PLANE, NOISE_SEED, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_SCALE};
 use math::Quat;
 use render::{Background, Camera, FrameContext, Framebuffer, OrbitController, RenderStats};
-use scene::DemoScene;
+use scene::SolarSystem;
+use scene::planets::PLANETS;
 use ship::{ChaseCamera, PitchControl, Ship, ShipInput};
 use simulation::Simulation;
 
 /// Todo lo que se carga una sola vez al inicio.
 struct World {
-    scene: DemoScene,
+    scene: SolarSystem,
     background: Background,
     noise: OpenSimplex,
 }
@@ -31,7 +32,7 @@ impl World {
     fn load() -> World {
         let noise = OpenSimplex::new(NOISE_SEED);
         World {
-            scene: DemoScene::load().unwrap_or_else(|err| panic!("{err}")),
+            scene: SolarSystem::load().unwrap_or_else(|err| panic!("{err}")),
             background: Background::new(&noise),
             noise,
         }
@@ -172,11 +173,13 @@ fn draw_hud(
 fn fixed_views(world: &World) -> Vec<(&'static str, Ship)> {
     let turn = |angle: f32| Quat::from_axis_angle(Vector3::new(0.0, 1.0, 0.0), angle);
     let nose_down = |angle: f32| Quat::from_axis_angle(Vector3::new(1.0, 0.0, 0.0), angle);
+    // A 3 unidades de la superficie del primer planeta, al inicio de la
+    // simulación, avanzando de lado con la punta un poco hacia abajo.
+    let planet = &PLANETS[0];
+    let surface = world.scene.planet_center(planet, 0.0) + Vector3::new(0.0, 0.0, planet.radius + 3.0);
     vec![
         ("inicio", world.scene.ship_start()),
-        // A 3 unidades de la superficie del planeta (radio 8, en x = 90 al
-        // inicio), avanzando de lado con la punta un poco hacia abajo.
-        ("superficie", Ship::new(Vector3::new(90.0, 0.0, 11.0), turn(-std::f32::consts::FRAC_PI_2) * nose_down(0.35))),
+        ("superficie", Ship::new(surface, turn(-std::f32::consts::FRAC_PI_2) * nose_down(0.35))),
         ("junto al sol", Ship::new(Vector3::new(0.0, 4.0, 22.0), turn(std::f32::consts::PI))),
     ]
 }
@@ -214,6 +217,14 @@ fn screenshots(world: &World, prefix: &str) {
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
     }
+
+    // Todo el sistema visto desde arriba.
+    let ship = world.scene.ship_start();
+    let overview = OrbitController { target: Vector3::zero(), yaw: 0.3, pitch: 1.0, distance: 420.0 };
+    world.render(&mut framebuffer, &overview.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE), 0.0, &ship);
+    let path = format!("{prefix}-sistema.png");
+    framebuffer.export(&path);
+    println!("Captura guardada en {path}");
 
     // La nave de cerca, en tres cuartos y por detrás, con los motores a fondo.
     let mut ship = world.scene.ship_start();

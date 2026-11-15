@@ -1,8 +1,9 @@
 //! Escena: los objetos que se dibujan en un cuadro.
 
-mod demo;
+pub mod planets;
+mod solar_system;
 
-pub use demo::DemoScene;
+pub use solar_system::SolarSystem;
 
 use std::sync::Arc;
 
@@ -14,7 +15,7 @@ use crate::shaders::Material;
 
 /// Un objeto listo para dibujar. La malla se comparte entre objetos (muchos
 /// árboles, una sola malla de árbol), por eso va en `Arc`.
-#[allow(dead_code, reason = "API pública que todavía no usa la escena de prueba")]
+#[allow(dead_code, reason = "el nombre sirve para depurar")]
 pub struct SceneObject {
     pub name: &'static str,
     pub mesh: Arc<Mesh>,

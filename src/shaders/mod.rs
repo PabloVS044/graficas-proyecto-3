@@ -38,8 +38,8 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext) -> 
 }
 
 /// Atajo para escribir un color con tres componentes.
-pub fn color(r: f32, g: f32, b: f32) -> Vector3 {
-    Vector3::new(r, g, b)
+pub const fn color(r: f32, g: f32, b: f32) -> Vector3 {
+    Vector3 { x: r, y: g, z: b }
 }
 
 /// Interpolación lineal entre dos colores.

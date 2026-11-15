@@ -8,8 +8,8 @@ escribir el texto del HUD. Las matrices de modelo, vista y proyección, la
 rasterización, la prueba de profundidad y los shaders están escritos en este
 repositorio.
 
-**Estado:** base del renderer y vuelo de la nave en tercera persona. Escena de prueba
-con un sol y un planeta que orbita y rota.
+**Estado:** renderer, vuelo de la nave en tercera persona y sistema solar con cinco
+planetas y una luna. Por ahora los planetas son de color liso.
 
 ## Cómo se ejecuta
 
@@ -54,7 +54,8 @@ src/
   mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ
   render/            cámara, contexto del cuadro, pipeline, rasterizador,
                      framebuffer, fondo, contadores
-  scene/             SceneObject, Collider y la escena de prueba
+  scene/             SceneObject, Collider y el sistema solar
+    planets.rs       datos de cada cuerpo: radio, órbita, giro, material, lunas
   ship/              física de la nave, cámara en tercera persona y controles
   simulation.rs      avance del mundo en pasos fijos
   shaders/           Material, shaders y funciones de ruido
@@ -84,7 +85,8 @@ Para que las tres partes del proyecto encajen:
   es un cuaternión.
 - **Luz:** el sol es una luz puntual en `FrameContext::light_position`. Cada shader
   calcula su dirección con `shaders::light_direction`.
-- **Unidades:** el sol mide 5 de radio y los planetas están a decenas de unidades.
+- **Unidades:** el sol mide 12 de radio; los planetas, de 4.5 a 9, y orbitan entre 60 y
+  240 unidades del sol.
 
 ### Cómo agregar algo
 
@@ -92,6 +94,15 @@ Para que las tres partes del proyecto encajen:
   nuevo en `src/shaders/` con su función, y una rama en `shaders::shade`. Los patrones
   se calculan sobre `fragment.object_position` y `fragment.object_normal` para que se
   muevan y giren con el objeto; la iluminación usa `fragment.normal` (mundo).
+- **Un planeta:** agregar una entrada a `PLANETS` en `src/scene/planets.rs` con su
+  radio, órbita, giro y material. Con eso ya orbita, gira, se dibuja y la nave choca con
+  él. `cargo test` revisa que su órbita no choque con las vecinas.
+- **La apariencia de un planeta:** por ahora cada uno usa `Material::Lambert` con un
+  color liso. Para darle apariencia propia, se crea su shader (ver el punto anterior) y
+  se pone en el campo `material` de su entrada. Ejemplo: `src/shaders/ship.rs`.
+- **Un objeto sobre un planeta:** su matriz de modelo es
+  `SolarSystem::planet_frame(planeta, tiempo) * posición_local`. Así orbita y gira con el
+  planeta.
 - **Un objeto:** construir un `SceneObject` con su malla (`Arc<Mesh>`, compartida entre
   copias), su matriz de modelo y su material, y agregarlo a la lista del cuadro.
 - **Un modelo de Blender:** exportar OBJ con triángulos o polígonos y normales, ponerlo
@@ -104,6 +115,6 @@ Ryzen 7 8845HS, 800×450, `--benchmark` (varía según el estado del equipo):
 
 | Pose de la nave | ms por cuadro |
 |---|---:|
-| Inicio | 4.9 |
-| Junto a la superficie del planeta | 8.5 |
-| Junto al sol | 6.3 |
+| Inicio | 5.0 |
+| Junto a la superficie del primer planeta | 10.7 |
+| Junto al sol | 8.4 |
