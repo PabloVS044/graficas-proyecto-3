@@ -4,10 +4,8 @@
 //! "top-left": dos triángulos vecinos nunca dejan huecos ni pintan dos veces el
 //! mismo píxel de su arista compartida.
 
-use raylib::math::Vector3;
-
 use super::fragment::Fragment;
-use super::pipeline::TransformedVertex;
+use super::pipeline::ScreenVertex;
 
 /// Unidades de punto fijo por píxel.
 const SUBPIXEL: i64 = 16;
@@ -15,9 +13,6 @@ const SUBPIXEL: i64 = 16;
 /// Qué pasó con un triángulo.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Outcome {
-    /// Algún vértice queda detrás de la cámara y no se puede proyectar.
-    /// Pendiente: recortarlo contra el plano cercano en vez de descartarlo.
-    BehindCamera,
     /// Da la espalda a la cámara, o es tan pequeño que su área en punto fijo es cero.
     BackFacing,
     Rasterized,
@@ -31,10 +26,10 @@ struct Point {
 }
 
 impl Point {
-    fn from_screen(screen: Vector3) -> Self {
+    fn from_screen(vertex: &ScreenVertex) -> Self {
         Point {
-            x: (screen.x * SUBPIXEL as f32).round() as i64,
-            y: (screen.y * SUBPIXEL as f32).round() as i64,
+            x: (vertex.x * SUBPIXEL as f32).round() as i64,
+            y: (vertex.y * SUBPIXEL as f32).round() as i64,
         }
     }
 
@@ -62,24 +57,16 @@ fn inside(edge: i64, top_left: bool) -> bool {
     edge > 0 || (edge == 0 && top_left)
 }
 
-/// Agrega a `out` un fragmento por cada píxel cubierto por el triángulo.
-pub fn rasterize(
-    vertices: &[TransformedVertex],
-    width: usize,
-    height: usize,
-    out: &mut Vec<Fragment>,
-) -> Outcome {
-    if vertices.iter().any(|vertex| vertex.inverse_w <= 0.0) {
-        return Outcome::BehindCamera;
-    }
-
+/// Agrega a `out` un fragmento por cada píxel cubierto por el triángulo. Los
+/// vértices deben estar al frente de la cámara (ya recortados).
+pub fn rasterize(vertices: &[ScreenVertex; 3], width: usize, height: usize, out: &mut Vec<Fragment>) -> Outcome {
     // Las mallas son antihorarias vistas desde afuera. En pantalla `y` crece
     // hacia abajo, así que recorriéndolo como 0, 2, 1 una cara visible da área
     // positiva, y la que da la espalda (área negativa) se descarta.
     let (v0, v1, v2) = (&vertices[0], &vertices[2], &vertices[1]);
-    let a = Point::from_screen(v0.screen);
-    let b = Point::from_screen(v1.screen);
-    let c = Point::from_screen(v2.screen);
+    let a = Point::from_screen(v0);
+    let b = Point::from_screen(v1);
+    let c = Point::from_screen(v2);
 
     let area = edge_function(a, b, c);
     if area <= 0 {
@@ -119,16 +106,18 @@ pub fn rasterize(
 
             // Corrección de perspectiva: lo que varía lineal en pantalla es
             // `atributo / w`, no el atributo. Sin esto los patrones se deforman.
+            // De paso, `1/w` interpolado en pantalla es la profundidad del fragmento.
             let p0 = w0 * v0.inverse_w;
             let p1 = w1 * v1.inverse_w;
             let p2 = w2 * v2.inverse_w;
-            let scale = 1.0 / (p0 + p1 + p2);
+            let inverse_w = p0 + p1 + p2;
+            let scale = 1.0 / inverse_w;
             let (p0, p1, p2) = (p0 * scale, p1 * scale, p2 * scale);
 
             out.push(Fragment {
                 x,
                 y,
-                depth: w0 * v0.screen.z + w1 * v1.screen.z + w2 * v2.screen.z,
+                depth: inverse_w,
                 object_position: v0.object_position * p0 + v1.object_position * p1 + v2.object_position * p2,
                 world_position: v0.world_position * p0 + v1.world_position * p1 + v2.world_position * p2,
                 normal: (v0.normal * p0 + v1.normal * p1 + v2.normal * p2).normalize(),

@@ -1,6 +1,8 @@
 use raylib::prelude::*;
 
 /// Colores en `f32` (pueden pasar de 1 antes de mostrarse) y profundidad por píxel.
+///
+/// La profundidad guarda `1/w`: más grande = más cerca, y 0 es el infinito.
 pub struct Framebuffer {
     pub width: usize,
     pub height: usize,
@@ -16,14 +18,14 @@ impl Framebuffer {
             width,
             height,
             colors: vec![Vector3::zero(); width * height],
-            depths: vec![f32::INFINITY; width * height],
+            depths: vec![0.0; width * height],
             pixels: vec![0; width * height * 4],
             texture: None,
         }
     }
 
     pub fn clear_depth(&mut self) {
-        self.depths.fill(f32::INFINITY);
+        self.depths.fill(0.0);
     }
 
     /// Crea la textura de raylib donde se copia el framebuffer cada cuadro.

@@ -1,9 +1,11 @@
-//! Las etapas que recorre cada objeto: vertex shader, rasterización, prueba
-//! de profundidad y fragment shader.
+//! Las etapas que recorre cada objeto: vertex shader, recorte contra el plano
+//! cercano, proyección a pantalla, rasterización, prueba de profundidad y
+//! fragment shader.
 
 use rayon::prelude::*;
 use raylib::math::{Vector2, Vector3, Vector4};
 
+use super::clip::{self, ClipVertex, Clipped};
 use super::fragment::Fragment;
 use super::raster::{self, Outcome};
 use super::{FrameContext, Framebuffer, RenderStats};
@@ -12,13 +14,14 @@ use crate::mesh::Vertex;
 use crate::scene::SceneObject;
 use crate::shaders;
 
-/// Lo que devuelve el vertex shader: el vértice en pantalla, junto con lo que
-/// el rasterizador interpola para cada fragmento.
+/// Vértice ya proyectado: lo que el rasterizador necesita.
 #[derive(Clone, Copy, Debug)]
-pub struct TransformedVertex {
-    /// `x`, `y` en píxeles; `z` es la profundidad.
-    pub screen: Vector3,
-    /// `1 / w`: lo necesita la interpolación con corrección de perspectiva.
+pub struct ScreenVertex {
+    /// Posición en píxeles.
+    pub x: f32,
+    pub y: f32,
+    /// `1 / w`. Es la profundidad (más grande = más cerca) y además lo necesita
+    /// la interpolación con corrección de perspectiva.
     pub inverse_w: f32,
     pub object_position: Vector3,
     pub world_position: Vector3,
@@ -26,26 +29,35 @@ pub struct TransformedVertex {
     pub uv: Vector2,
 }
 
-/// objeto → mundo → clip → (división de perspectiva) → pantalla.
-fn vertex_shader(vertex: &Vertex, model: &Mat4, model_view_projection: &Mat4, width: usize, height: usize) -> TransformedVertex {
+/// objeto → mundo → clip. La división de perspectiva se hace después de recortar.
+fn vertex_shader(vertex: &Vertex, model: &Mat4, model_view_projection: &Mat4) -> ClipVertex {
     let p = vertex.position;
-    let clip = model_view_projection.transform(Vector4::new(p.x, p.y, p.z, 1.0));
 
-    let inverse_w = 1.0 / clip.w;
-    let ndc = Vector3::new(clip.x * inverse_w, clip.y * inverse_w, clip.z * inverse_w);
-
-    TransformedVertex {
-        screen: Vector3::new(
-            (ndc.x + 1.0) * 0.5 * width as f32,
-            // En pantalla `y` crece hacia abajo.
-            (1.0 - ndc.y) * 0.5 * height as f32,
-            ndc.z,
-        ),
-        inverse_w,
+    ClipVertex {
+        clip: model_view_projection.transform(Vector4::new(p.x, p.y, p.z, 1.0)),
         object_position: p,
         world_position: model.transform_point(p),
         // Con escala uniforme basta con transformar como dirección.
         normal: model.transform_direction(vertex.normal),
+        uv: vertex.uv,
+    }
+}
+
+/// División de perspectiva y paso a píxeles. Solo es válida con `w > 0`, que
+/// el recorte garantiza.
+fn project(vertex: &ClipVertex, width: usize, height: usize) -> ScreenVertex {
+    let inverse_w = 1.0 / vertex.clip.w;
+    let ndc_x = vertex.clip.x * inverse_w;
+    let ndc_y = vertex.clip.y * inverse_w;
+
+    ScreenVertex {
+        x: (ndc_x + 1.0) * 0.5 * width as f32,
+        // En pantalla `y` crece hacia abajo.
+        y: (1.0 - ndc_y) * 0.5 * height as f32,
+        inverse_w,
+        object_position: vertex.object_position,
+        world_position: vertex.world_position,
+        normal: vertex.normal,
         uv: vertex.uv,
     }
 }
@@ -55,6 +67,7 @@ fn vertex_shader(vertex: &Vertex, model: &Mat4, model_view_projection: &Mat4, wi
 struct RasterBatch {
     fragments: Vec<Fragment>,
     behind_camera: usize,
+    clipped: usize,
     backfacing: usize,
     rasterized: usize,
 }
@@ -63,9 +76,18 @@ impl RasterBatch {
     fn merge(mut self, mut other: RasterBatch) -> RasterBatch {
         self.fragments.append(&mut other.fragments);
         self.behind_camera += other.behind_camera;
+        self.clipped += other.clipped;
         self.backfacing += other.backfacing;
         self.rasterized += other.rasterized;
         self
+    }
+
+    fn rasterize(&mut self, triangle: &[ClipVertex], width: usize, height: usize) {
+        let screen = [0, 1, 2].map(|i| project(&triangle[i], width, height));
+        match raster::rasterize(&screen, width, height, &mut self.fragments) {
+            Outcome::BackFacing => self.backfacing += 1,
+            Outcome::Rasterized => self.rasterized += 1,
+        }
     }
 }
 
@@ -76,29 +98,36 @@ pub fn draw_object(framebuffer: &mut Framebuffer, object: &SceneObject, frame: &
     let (width, height) = (framebuffer.width, framebuffer.height);
     let model_view_projection = frame.view_projection * object.model;
 
-    let transformed: Vec<TransformedVertex> = object
+    let transformed: Vec<ClipVertex> = object
         .mesh
         .vertices
         .par_iter()
-        .map(|vertex| vertex_shader(vertex, &object.model, &model_view_projection, width, height))
+        .map(|vertex| vertex_shader(vertex, &object.model, &model_view_projection))
         .collect();
 
     let batch = transformed
         .par_chunks_exact(3)
         .fold(RasterBatch::default, |mut batch, triangle| {
-            match raster::rasterize(triangle, width, height, &mut batch.fragments) {
-                Outcome::BehindCamera => batch.behind_camera += 1,
-                Outcome::BackFacing => batch.backfacing += 1,
-                Outcome::Rasterized => batch.rasterized += 1,
+            match clip::clip_near(triangle, frame.near) {
+                Clipped::Inside => batch.rasterize(triangle, width, height),
+                Clipped::Outside => batch.behind_camera += 1,
+                Clipped::Split(pieces) => {
+                    batch.clipped += 1;
+                    for piece in &pieces {
+                        batch.rasterize(piece, width, height);
+                    }
+                }
             }
             batch
         })
         .reduce(RasterBatch::default, RasterBatch::merge);
 
+    // Profundidad con `1/w`: más grande = más cerca. Varía en forma lineal en
+    // pantalla y su precisión no se concentra junto al plano cercano.
     let mut visible = Vec::with_capacity(batch.fragments.len());
     for fragment in &batch.fragments {
         let index = fragment.y * width + fragment.x;
-        if fragment.depth < framebuffer.depths[index] {
+        if fragment.depth > framebuffer.depths[index] {
             framebuffer.depths[index] = fragment.depth;
             visible.push((index, fragment));
         }
@@ -117,6 +146,7 @@ pub fn draw_object(framebuffer: &mut Framebuffer, object: &SceneObject, frame: &
     stats.objects_drawn += 1;
     stats.triangles_submitted += object.mesh.triangle_count();
     stats.triangles_behind_camera += batch.behind_camera;
+    stats.triangles_clipped += batch.clipped;
     stats.triangles_backfacing += batch.backfacing;
     stats.triangles_rasterized += batch.rasterized;
     stats.fragments_rasterized += batch.fragments.len();

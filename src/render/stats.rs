@@ -6,12 +6,15 @@ pub struct RenderStats {
     pub objects_drawn: usize,
     /// Triángulos que entraron al pipeline.
     pub triangles_submitted: usize,
-    /// Descartados por tener un vértice detrás de la cámara.
+    /// Descartados por quedar completos detrás del plano cercano.
     pub triangles_behind_camera: usize,
+    /// Cruzaban el plano cercano y se recortaron.
+    pub triangles_clipped: usize,
     /// Descartados por dar la espalda a la cámara o por ser tan pequeños en
     /// pantalla que su área queda en cero.
     pub triangles_backfacing: usize,
-    /// Llegaron a recorrerse píxel por píxel.
+    /// Llegaron a recorrerse píxel por píxel. Un triángulo recortado puede
+    /// aportar dos.
     pub triangles_rasterized: usize,
     /// Fragmentos producidos por la rasterización.
     pub fragments_rasterized: usize,
@@ -25,11 +28,12 @@ impl RenderStats {
         [
             format!("objetos: {}/{}", self.objects_drawn, self.objects_total),
             format!(
-                "triangulos: {} enviados, {} rasterizados ({} espalda/sin area, {} detras)",
+                "triangulos: {} enviados, {} rasterizados ({} espalda/sin area, {} detras, {} recortados)",
                 self.triangles_submitted,
                 self.triangles_rasterized,
                 self.triangles_backfacing,
                 self.triangles_behind_camera,
+                self.triangles_clipped,
             ),
             format!(
                 "fragmentos: {} rasterizados, {} sombreados",
