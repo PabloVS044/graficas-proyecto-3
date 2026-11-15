@@ -14,6 +14,8 @@ pub struct FrameContext {
     pub view_projection: Mat4,
     pub camera_position: Vector3,
     pub rays: CameraRays,
+    /// Distancia al plano cercano: ahí se recortan los triángulos.
+    pub near: f32,
     pub width: usize,
     pub height: usize,
     /// Segundos de simulación. Todo lo animado depende de esto, no del número
@@ -42,6 +44,7 @@ impl FrameContext {
             view_projection: projection * view,
             camera_position: camera.position,
             rays: camera.rays(width, height),
+            near: camera.near,
             width,
             height,
             time,
