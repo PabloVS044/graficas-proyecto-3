@@ -5,6 +5,8 @@ mod mesh;
 mod render;
 mod scene;
 mod shaders;
+mod ship;
+mod simulation;
 
 use std::time::Instant;
 
@@ -12,11 +14,11 @@ use noise::OpenSimplex;
 use raylib::prelude::*;
 
 use config::{FAR_PLANE, FIELD_OF_VIEW, NEAR_PLANE, NOISE_SEED, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_SCALE};
+use math::Quat;
 use render::{Background, Camera, FrameContext, Framebuffer, OrbitController, RenderStats};
 use scene::DemoScene;
-
-/// Un cuadro lento (por ejemplo al mover la ventana) no debe hacer saltar la simulación.
-const MAX_FRAME_TIME: f32 = 0.1;
+use ship::{ChaseCamera, PitchControl, Ship, ShipInput};
+use simulation::Simulation;
 
 /// Todo lo que se carga una sola vez al inicio.
 struct World {
@@ -35,7 +37,7 @@ impl World {
         }
     }
 
-    fn render(&self, framebuffer: &mut Framebuffer, camera: &Camera, time: f32) -> RenderStats {
+    fn render(&self, framebuffer: &mut Framebuffer, camera: &Camera, time: f32, ship: &Ship) -> RenderStats {
         let frame = FrameContext::new(
             camera,
             framebuffer.width,
@@ -44,13 +46,19 @@ impl World {
             self.scene.light_position(),
             &self.noise,
         );
-        let objects = self.scene.objects(time);
+        let objects = self.scene.objects(time, ship);
         render::render_frame(framebuffer, &self.background, &objects, &frame)
     }
 }
 
-fn camera_from(orbit: &OrbitController) -> Camera {
-    orbit.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE)
+/// Qué cámara se usa para mirar.
+#[derive(Clone, Copy, PartialEq)]
+enum View {
+    /// Detrás de la nave. Es la del juego.
+    Chase,
+    /// Orbita alrededor de la nave para verla desde cualquier lado. Mientras
+    /// está activa, la nave no recibe controles.
+    Inspect,
 }
 
 fn main() {
@@ -62,8 +70,8 @@ fn main() {
         return;
     }
     if let Some(index) = args.iter().position(|arg| arg == "--screenshot") {
-        let path = args.get(index + 1).map_or("captura.png", String::as_str);
-        screenshot(&world, path);
+        let prefix = args.get(index + 1).map_or("captura", String::as_str);
+        screenshots(&world, prefix);
         return;
     }
 
@@ -80,33 +88,65 @@ fn run_window(world: &World) {
     let mut framebuffer = Framebuffer::new(RENDER_WIDTH, RENDER_HEIGHT);
     framebuffer.init_texture(&mut window, &thread);
 
-    let mut orbit = OrbitController::new();
-    let mut time = 0.0;
-    let mut paused = false;
+    let mut simulation = Simulation::new(&world.scene);
+    let mut view = View::Chase;
+    let mut inspect = OrbitController { distance: 10.0, ..OrbitController::new() };
+    let mut pitch_control = PitchControl::Aircraft;
 
     while !window.window_should_close() {
-        let delta = window.get_frame_time().min(MAX_FRAME_TIME);
+        let frame_time = window.get_frame_time();
 
         if window.is_key_pressed(KeyboardKey::KEY_SPACE) {
-            paused = !paused;
+            simulation.paused = !simulation.paused;
         }
-        if !paused {
-            time += delta;
+        if window.is_key_pressed(KeyboardKey::KEY_I) {
+            pitch_control = pitch_control.toggled();
         }
-        orbit.update(&window, delta);
+        if window.is_key_pressed(KeyboardKey::KEY_C) {
+            view = if view == View::Chase { View::Inspect } else { View::Chase };
+        }
+
+        let input = match view {
+            View::Chase => {
+                if window.is_key_pressed(KeyboardKey::KEY_R) {
+                    simulation.reset_ship(&world.scene);
+                }
+                ship::read_input(&window, pitch_control)
+            }
+            View::Inspect => {
+                inspect.update(&window, frame_time);
+                ShipInput::default()
+            }
+        };
+        simulation.advance(&world.scene, &input, frame_time);
+
+        let camera = match view {
+            View::Chase => simulation.camera.camera(&simulation.ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE),
+            View::Inspect => {
+                inspect.target = simulation.ship.position;
+                inspect.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE)
+            }
+        };
 
         let start = Instant::now();
-        let stats = world.render(&mut framebuffer, &camera_from(&orbit), time);
+        let stats = world.render(&mut framebuffer, &camera, simulation.time, &simulation.ship);
         let render_ms = start.elapsed().as_secs_f32() * 1000.0;
         framebuffer.upload();
 
         let mut drawing = window.begin_drawing(&thread);
         framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
-        draw_hud(&mut drawing, &stats, render_ms, paused);
+        draw_hud(&mut drawing, &stats, render_ms, &simulation, view, pitch_control);
     }
 }
 
-fn draw_hud(drawing: &mut RaylibDrawHandle, stats: &RenderStats, render_ms: f32, paused: bool) {
+fn draw_hud(
+    drawing: &mut RaylibDrawHandle,
+    stats: &RenderStats,
+    render_ms: f32,
+    simulation: &Simulation,
+    view: View,
+    pitch_control: PitchControl,
+) {
     const SIZE: i32 = 20;
     let window_height = (RENDER_HEIGHT * WINDOW_SCALE) as i32;
 
@@ -115,34 +155,45 @@ fn draw_hud(drawing: &mut RaylibDrawHandle, stats: &RenderStats, render_ms: f32,
     for (row, line) in stats.lines().iter().enumerate() {
         drawing.draw_text(line, 10, 58 + row as i32 * 24, SIZE, Color::RAYWHITE);
     }
-    if paused {
-        drawing.draw_text("PAUSA", 10, 134, SIZE, Color::YELLOW);
+    drawing.draw_text(&format!("velocidad: {:.1}", simulation.ship.speed()), 10, 134, SIZE, Color::SKYBLUE);
+    drawing.draw_text(&format!("cabeceo: {} (I cambia)", pitch_control.label()), 10, 158, SIZE, Color::SKYBLUE);
+    if simulation.paused {
+        drawing.draw_text("PAUSA", 10, 182, SIZE, Color::YELLOW);
     }
-    drawing.draw_text(
-        "Flechas: orbitar   Rueda: acercar   Espacio: pausa   R: reiniciar camara",
-        10,
-        window_height - 30,
-        SIZE,
-        Color::LIGHTGRAY,
-    );
+
+    let controls = match view {
+        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   C: inspeccionar   R: reiniciar   Espacio: pausa",
+        View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   Espacio: pausa",
+    };
+    drawing.draw_text(controls, 10, window_height - 30, SIZE, Color::LIGHTGRAY);
 }
 
-/// Mide cuánto tarda un cuadro desde varias distancias, sin abrir ventana.
-/// La misma ruta en cada ejecución, para comparar entre versiones.
+/// Poses fijas de la nave para medir y capturar siempre lo mismo.
+fn fixed_views(world: &World) -> Vec<(&'static str, Ship)> {
+    let turn = |angle: f32| Quat::from_axis_angle(Vector3::new(0.0, 1.0, 0.0), angle);
+    let nose_down = |angle: f32| Quat::from_axis_angle(Vector3::new(1.0, 0.0, 0.0), angle);
+    vec![
+        ("inicio", world.scene.ship_start()),
+        // A 3 unidades de la superficie del planeta (radio 8, en x = 90 al
+        // inicio), avanzando de lado con la punta un poco hacia abajo.
+        ("superficie", Ship::new(Vector3::new(90.0, 0.0, 11.0), turn(-std::f32::consts::FRAC_PI_2) * nose_down(0.35))),
+        ("junto al sol", Ship::new(Vector3::new(0.0, 4.0, 22.0), turn(std::f32::consts::PI))),
+    ]
+}
+
+/// Mide cuánto tarda un cuadro en cada pose fija, sin abrir ventana.
 fn benchmark(world: &World) {
     const FRAMES: u32 = 60;
-    let views = [("lejos", 80.0), ("medio", 40.0), ("cerca del sol", 12.0)];
     let mut framebuffer = Framebuffer::new(RENDER_WIDTH, RENDER_HEIGHT);
 
     println!("{RENDER_WIDTH}x{RENDER_HEIGHT}, {FRAMES} cuadros por vista");
-    for (name, distance) in views {
-        let orbit = OrbitController { distance, ..OrbitController::new() };
-        let camera = camera_from(&orbit);
+    for (name, ship) in fixed_views(world) {
+        let camera = ChaseCamera::behind(&ship).camera(&ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
 
         let start = Instant::now();
         let mut stats = RenderStats::default();
-        for frame in 0..FRAMES {
-            stats = world.render(&mut framebuffer, &camera, frame as f32 / 60.0);
+        for _ in 0..FRAMES {
+            stats = world.render(&mut framebuffer, &camera, 0.0, &ship);
         }
         let ms = start.elapsed().as_secs_f32() * 1000.0 / FRAMES as f32;
 
@@ -153,10 +204,14 @@ fn benchmark(world: &World) {
     }
 }
 
-/// Guarda un cuadro como PNG con la cámara inicial.
-fn screenshot(world: &World, path: &str) {
+/// Guarda una captura por pose fija: `<prefijo>-<vista>.png`.
+fn screenshots(world: &World, prefix: &str) {
     let mut framebuffer = Framebuffer::new(RENDER_WIDTH, RENDER_HEIGHT);
-    world.render(&mut framebuffer, &camera_from(&OrbitController::new()), 2.0);
-    framebuffer.export(path);
-    println!("Captura guardada en {path}");
+    for (name, ship) in fixed_views(world) {
+        let camera = ChaseCamera::behind(&ship).camera(&ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
+        world.render(&mut framebuffer, &camera, 0.0, &ship);
+        let path = format!("{prefix}-{}.png", name.replace(' ', "-"));
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
+    }
 }

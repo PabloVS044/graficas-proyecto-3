@@ -8,8 +8,8 @@ escribir el texto del HUD. Las matrices de modelo, vista y proyección, la
 rasterización, la prueba de profundidad y los shaders están escritos en este
 repositorio.
 
-**Estado:** base del renderer. Escena de prueba con un sol, un planeta que orbita y
-rota, y la nave.
+**Estado:** base del renderer y vuelo de la nave en tercera persona. Escena de prueba
+con un sol y un planeta que orbita y rota.
 
 ## Cómo se ejecuta
 
@@ -19,21 +19,30 @@ ventanas.
 
 ```bash
 cargo run --release                          # ventana
-cargo run --release -- --benchmark           # ms por cuadro desde varias distancias, sin ventana
-cargo run --release -- --screenshot cuadro.png
+cargo run --release -- --benchmark           # ms por cuadro en poses fijas de la nave, sin ventana
+cargo run --release -- --screenshot captura  # captura-inicio.png, captura-superficie.png, ...
 cargo test --release                         # pruebas
 ```
 
 Se ejecuta desde la raíz del repositorio: los modelos se cargan de `assets/`.
 
-### Controles (provisionales)
+### Controles
 
 | Tecla | Acción |
 |---|---|
-| Flechas | Orbitar la cámara |
-| Rueda del mouse | Acercar o alejar |
+| `W` / `S` | Acelerar / frenar |
+| Flechas ↓ / ↑ | Subir / bajar la punta, como la palanca de un avión (halar sube, empujar baja) |
+| Flechas ← / → | Girar a la izquierda / derecha |
+| `I` | Invertir las flechas arriba y abajo (arriba sube) |
+| `A` / `D` | Alabear (girar sobre su eje) |
+| `Shift` | Turbo |
+| `C` | Inspeccionar: orbitar alrededor de la nave con flechas y rueda; otra vez `C` para volver |
+| `R` | Volver la nave al inicio |
 | Espacio | Pausar la simulación |
-| `R` | Reiniciar la cámara |
+
+La aceleración y los giros son progresivos. La física avanza en pasos fijos de 1/120 s,
+así que la nave responde igual sin importar cuántos cuadros por segundo dibuje el equipo.
+No se puede atravesar el sol ni el planeta.
 
 ## Estructura
 
@@ -45,7 +54,9 @@ src/
   mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ
   render/            cámara, contexto del cuadro, pipeline, rasterizador,
                      framebuffer, fondo, contadores
-  scene/             SceneObject y la escena de prueba
+  scene/             SceneObject, Collider y la escena de prueba
+  ship/              física de la nave, cámara en tercera persona y controles
+  simulation.rs      avance del mundo en pasos fijos
   shaders/           Material, shaders y funciones de ruido
 assets/
   nave_graficas.obj  la nave (Blender, 39 168 triángulos)
@@ -67,8 +78,10 @@ Para que las tres partes del proyecto encajen:
   así la cámara puede pegarse a una superficie sin que aparezcan agujeros.
 - **Profundidad:** el búfer guarda `1/w`. Más grande es más cerca y 0 es el infinito.
 - **Mallas** sin índices: cada tres vértices seguidos son un triángulo.
-- **Tiempo:** todo lo animado depende de `FrameContext::time` (segundos de
-  simulación), nunca del número de cuadro.
+- **Tiempo:** todo lo animado depende de `Simulation::time` (segundos de simulación,
+  llega a los shaders como `FrameContext::time`), nunca del número de cuadro.
+- **Nave:** la punta del modelo mira hacia `+z` y el techo hacia `+y`. Su orientación
+  es un cuaternión.
 - **Luz:** el sol es una luz puntual en `FrameContext::light_position`. Cada shader
   calcula su dirección con `shaders::light_direction`.
 - **Unidades:** el sol mide 5 de radio y los planetas están a decenas de unidades.
@@ -86,10 +99,10 @@ Para que las tres partes del proyecto encajen:
 
 ## Rendimiento de referencia
 
-Ryzen 7 8845HS, 800×450, `--benchmark`:
+Ryzen 7 8845HS, 800×450, `--benchmark` (varía según el estado del equipo):
 
-| Vista | ms por cuadro |
+| Pose de la nave | ms por cuadro |
 |---|---:|
-| Lejos | 3.8 |
-| Media | 4.1 |
-| Cerca del sol | 6.7 |
+| Inicio | 4.9 |
+| Junto a la superficie del planeta | 8.5 |
+| Junto al sol | 6.3 |

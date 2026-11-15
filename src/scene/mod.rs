@@ -6,6 +6,8 @@ pub use demo::DemoScene;
 
 use std::sync::Arc;
 
+use raylib::math::Vector3;
+
 use crate::math::Mat4;
 use crate::mesh::Mesh;
 use crate::shaders::Material;
@@ -20,6 +22,16 @@ pub struct SceneObject {
     /// esta misma matriz.
     pub model: Mat4,
     pub material: Material,
+}
+
+/// Esfera sólida que la nave no puede atravesar.
+#[derive(Clone, Copy, Debug)]
+pub struct Collider {
+    pub center: Vector3,
+    pub radius: f32,
+    /// Velocidad del cuerpo: un planeta se mueve en su órbita, y la colisión se
+    /// resuelve con la velocidad relativa.
+    pub velocity: Vector3,
 }
 
 /// Escala que deja a la malla con el radio pedido, centrada en el origen del objeto.
