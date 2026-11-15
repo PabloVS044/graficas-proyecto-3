@@ -20,7 +20,7 @@ ventanas.
 ```bash
 cargo run --release                          # ventana
 cargo run --release -- --benchmark           # ms por cuadro en poses fijas de la nave, sin ventana
-cargo run --release -- --screenshot captura  # captura-inicio.png, captura-superficie.png, ...
+cargo run --release -- --screenshot captura  # captura-inicio.png, ..., captura-nave-frente.png
 cargo test --release                         # pruebas
 ```
 
@@ -90,7 +90,8 @@ Para que las tres partes del proyecto encajen:
 
 - **Un shader:** variante nueva en `shaders::Material` con sus parámetros, archivo
   nuevo en `src/shaders/` con su función, y una rama en `shaders::shade`. Los patrones
-  se calculan sobre `fragment.object_position` para que se muevan con el objeto.
+  se calculan sobre `fragment.object_position` y `fragment.object_normal` para que se
+  muevan y giren con el objeto; la iluminación usa `fragment.normal` (mundo).
 - **Un objeto:** construir un `SceneObject` con su malla (`Arc<Mesh>`, compartida entre
   copias), su matriz de modelo y su material, y agregarlo a la lista del cuadro.
 - **Un modelo de Blender:** exportar OBJ con triángulos o polígonos y normales, ponerlo

@@ -98,7 +98,7 @@ impl DemoScene {
             model: Mat4::translation(ship.position)
                 * Mat4::rotation(ship.orientation)
                 * fit_to_radius(&self.ship, SHIP_RADIUS),
-            material: Material::Lambert { albedo: color(0.8, 0.8, 0.85) },
+            material: Material::Ship { throttle: ship.throttle },
         };
 
         vec![sun, planet, ship]

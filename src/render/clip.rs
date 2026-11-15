@@ -20,6 +20,9 @@ pub struct ClipVertex {
     pub clip: Vector4,
     pub object_position: Vector3,
     pub world_position: Vector3,
+    /// Normal en el espacio del objeto.
+    pub object_normal: Vector3,
+    /// Normal en coordenadas de mundo.
     pub normal: Vector3,
     pub uv: Vector2,
 }
@@ -36,6 +39,7 @@ impl ClipVertex {
             ),
             object_position: a.object_position + (b.object_position - a.object_position) * t,
             world_position: a.world_position + (b.world_position - a.world_position) * t,
+            object_normal: a.object_normal + (b.object_normal - a.object_normal) * t,
             normal: a.normal + (b.normal - a.normal) * t,
             uv: a.uv + (b.uv - a.uv) * t,
         }
@@ -102,6 +106,7 @@ mod tests {
             clip: Vector4::new(x, y, 0.0, w),
             object_position: Vector3::new(w, 0.0, 0.0),
             world_position: Vector3::zero(),
+            object_normal: Vector3::new(0.0, 0.0, 1.0),
             normal: Vector3::new(0.0, 0.0, 1.0),
             uv: Vector2::new(w, 0.0),
         }

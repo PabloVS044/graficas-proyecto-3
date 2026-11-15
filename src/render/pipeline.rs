@@ -25,6 +25,7 @@ pub struct ScreenVertex {
     pub inverse_w: f32,
     pub object_position: Vector3,
     pub world_position: Vector3,
+    pub object_normal: Vector3,
     pub normal: Vector3,
     pub uv: Vector2,
 }
@@ -37,6 +38,7 @@ fn vertex_shader(vertex: &Vertex, model: &Mat4, model_view_projection: &Mat4) ->
         clip: model_view_projection.transform(Vector4::new(p.x, p.y, p.z, 1.0)),
         object_position: p,
         world_position: model.transform_point(p),
+        object_normal: vertex.normal,
         // Con escala uniforme basta con transformar como dirección.
         normal: model.transform_direction(vertex.normal),
         uv: vertex.uv,
@@ -57,6 +59,7 @@ fn project(vertex: &ClipVertex, width: usize, height: usize) -> ScreenVertex {
         inverse_w,
         object_position: vertex.object_position,
         world_position: vertex.world_position,
+        object_normal: vertex.object_normal,
         normal: vertex.normal,
         uv: vertex.uv,
     }

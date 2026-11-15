@@ -214,4 +214,16 @@ fn screenshots(world: &World, prefix: &str) {
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
     }
+
+    // La nave de cerca, en tres cuartos y por detrás, con los motores a fondo.
+    let mut ship = world.scene.ship_start();
+    ship.throttle = 1.0;
+    for (name, yaw) in [("nave-frente", 2.5), ("nave-cola", 0.5)] {
+        let orbit = OrbitController { target: ship.position, yaw, pitch: 0.35, distance: 3.2 };
+        let camera = orbit.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
+        world.render(&mut framebuffer, &camera, 0.0, &ship);
+        let path = format!("{prefix}-{name}.png");
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
+    }
 }
