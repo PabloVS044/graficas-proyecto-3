@@ -59,7 +59,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: 0.02,
         spin_speed: 0.3,
         axial_tilt: 0.3,
-        material: Material::Placeholder { base: color(0.16, 0.45, 0.18), accent: color(0.12, 0.3, 0.6) },
+        material: Material::Lambert { albedo: color(0.16, 0.45, 0.18) },
         moons: &[],
     },
     PlanetSpec {
@@ -71,7 +71,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: -0.03,
         spin_speed: 0.2,
         axial_tilt: 0.1,
-        material: Material::Placeholder { base: color(0.55, 0.65, 0.12), accent: color(0.3, 0.28, 0.2) },
+        material: Material::Lambert { albedo: color(0.55, 0.65, 0.12) },
         moons: &[MoonSpec {
             name: "Luna de Toxico",
             radius: 1.6,
@@ -79,7 +79,7 @@ pub const PLANETS: &[PlanetSpec] = &[
             orbit_speed: 0.4,
             orbit_phase: 1.0,
             orbit_tilt: 0.35,
-            material: Material::Placeholder { base: color(0.55, 0.55, 0.55), accent: color(0.35, 0.35, 0.38) },
+            material: Material::Lambert { albedo: color(0.55, 0.55, 0.55) },
         }],
     },
     PlanetSpec {
@@ -91,7 +91,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: 0.04,
         spin_speed: 0.35,
         axial_tilt: 0.5,
-        material: Material::Placeholder { base: color(0.75, 0.88, 0.95), accent: color(0.4, 0.6, 0.8) },
+        material: Material::Lambert { albedo: color(0.75, 0.88, 0.95) },
         moons: &[],
     },
     PlanetSpec {
@@ -103,7 +103,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: -0.02,
         spin_speed: 0.25,
         axial_tilt: 0.2,
-        material: Material::Placeholder { base: color(0.25, 0.12, 0.1), accent: color(0.9, 0.35, 0.08) },
+        material: Material::Lambert { albedo: color(0.25, 0.12, 0.1) },
         moons: &[],
     },
     PlanetSpec {
@@ -115,7 +115,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: 0.05,
         spin_speed: 0.4,
         axial_tilt: 0.15,
-        material: Material::Placeholder { base: color(0.5, 0.42, 0.34), accent: color(0.3, 0.26, 0.22) },
+        material: Material::Lambert { albedo: color(0.5, 0.42, 0.34) },
         moons: &[],
     },
 ];
