@@ -1,6 +1,21 @@
 [package]
-name = "spaceTravel"
+name = "space_travel"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+noise = "0.9"
+rayon = "1"
+raylib = { version = "6.0.0", features = [
+    "SUPPORT_IMAGE_GENERATION",
+    "SUPPORT_IMAGE_EXPORT",
+    "SUPPORT_FILEFORMAT_PNG",
+] }
+
+# Un software renderer sin optimizar es demasiado lento hasta para probar.
+[profile.dev]
+opt-level = 3
+debug = false
+
+[profile.test]
+opt-level = 3
