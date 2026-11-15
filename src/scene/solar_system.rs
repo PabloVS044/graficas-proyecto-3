@@ -15,7 +15,7 @@ use crate::ship::Ship;
 
 /// Mitad de la envergadura de la nave, en unidades del mundo.
 const SHIP_RADIUS: f32 = 1.5;
-/// La nave empieza entre la órbita de Toxico y la de Hielo, mirando al sol.
+/// La nave empieza entre la segunda y la tercera órbita, mirando al sol.
 const SHIP_START: Vector3 = Vector3 { x: 0.0, y: 10.0, z: 122.0 };
 
 pub struct SolarSystem {

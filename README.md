@@ -9,8 +9,7 @@ rasterización, la prueba de profundidad y los shaders están escritos en este
 repositorio.
 
 **Estado:** renderer, vuelo de la nave en tercera persona y sistema solar con cinco
-planetas y una luna. Los planetas todavía tienen una apariencia provisional (tablero de
-dos colores) que se reemplaza por un shader propio para cada uno.
+planetas y una luna. Por ahora los planetas son de color liso.
 
 ## Cómo se ejecuta
 
@@ -98,9 +97,9 @@ Para que las tres partes del proyecto encajen:
 - **Un planeta:** agregar una entrada a `PLANETS` en `src/scene/planets.rs` con su
   radio, órbita, giro y material. Con eso ya orbita, gira, se dibuja y la nave choca con
   él. `cargo test` revisa que su órbita no choque con las vecinas.
-- **La apariencia de un planeta:** cada uno usa por ahora `Material::Placeholder`, que
-  solo cambia colores. Para darle identidad, se crea su propio shader (ver el punto
-  anterior) y se pone en el campo `material` de su entrada. Ejemplo: `src/shaders/ship.rs`.
+- **La apariencia de un planeta:** por ahora cada uno usa `Material::Lambert` con un
+  color liso. Para darle apariencia propia, se crea su shader (ver el punto anterior) y
+  se pone en el campo `material` de su entrada. Ejemplo: `src/shaders/ship.rs`.
 - **Un objeto sobre un planeta:** su matriz de modelo es
   `SolarSystem::planet_frame(planeta, tiempo) * posición_local`. Así orbita y gira con el
   planeta.
@@ -117,5 +116,5 @@ Ryzen 7 8845HS, 800×450, `--benchmark` (varía según el estado del equipo):
 | Pose de la nave | ms por cuadro |
 |---|---:|
 | Inicio | 5.0 |
-| Junto a la superficie de Jungla | 10.7 |
+| Junto a la superficie del primer planeta | 10.7 |
 | Junto al sol | 8.4 |
