@@ -10,7 +10,8 @@ repositorio.
 
 **Estado:** renderer, vuelo de la nave en tercera persona y sistema solar con cinco
 planetas y una luna. El sol y cada planeta tienen su propio shader, y todos reaccionan
-cuando la nave se acerca.
+cuando la nave se acerca. Tres planetas tienen objetos sobre su superficie, repartidos
+con una semilla.
 
 ## Planetas
 
@@ -43,7 +44,8 @@ cargo test --release                         # pruebas
 ```
 
 Se ejecuta desde la raíz del repositorio: los modelos se cargan de `assets/`.
-`--screenshot` guarda también cada planeta con la nave cerca (`<prefijo>-<planeta>-cerca.png`).
+`--screenshot` guarda también cada planeta con la nave cerca (`<prefijo>-<planeta>-cerca.png`)
+y una vista a ras del suelo de su lado de día (`<prefijo>-<planeta>-suelo.png`).
 
 **Windows:** si la compilación falla con `'vcruntime.h' file not found`, `bindgen` no
 encuentra los headers de MSVC (pasa cuando hay una instalación de Visual Studio sin las
@@ -71,6 +73,7 @@ $env:BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files (x86)/Microsoft Visual Stud
 | `F` | Descarte de objetos fuera de la vista: activo o apagado |
 | `O` | Cerca de un planeta: entrar o salir del modo orbital |
 | `G` | Gravedad: activa o apagada |
+| `N` | Otra semilla para repartir los objetos de la superficie |
 
 La aceleración y los giros son progresivos. La física avanza en pasos fijos de 1/120 s,
 así que la nave responde igual sin importar cuántos cuadros por segundo dibuje el equipo.
@@ -92,6 +95,36 @@ No se puede atravesar el sol ni los planetas.
   los pasos fijos de la física con una semilla fija, y el renderer las dibuja después de
   los objetos como discos de luz: prueban la profundidad sin escribirla y suman su color.
 
+## Superficie
+
+Jungla, Ignis y Kryos tienen objetos sobre su superficie. Los modelos se generan en
+código (`src/mesh/shapes.rs`) con caras planas, y cada tipo tiene varias formas para
+que las copias no sean iguales.
+
+| Planeta | Objeto | Dónde va | Qué lo distingue |
+|---|---|---|---|
+| Jungla | Árbol: tronco inclinado y copa de follaje irregular | Selva: tierra firme, sin mar, mesetas ni aldeas | Luciérnagas en la copa de noche |
+| Jungla | Choza de barro y palos con techo de paja | Aldeas, donde de noche se ven las fogatas | Fuego encendido en la puerta |
+| Ignis | Roca de basalto con hendiduras y poros: peñas altas o peñascos bajos | Placas firmes, lejos de la lava y de los cráteres | Lava en los poros y base al rojo |
+| Kryos | Cristales de hielo: grupos de puntas o una punta grande suelta | Grietas grandes del hielo | Brillo cian por dentro que crece con la nave cerca |
+
+- **Distribución** (`scene::surface::place`): se toman puntos al azar sobre la esfera
+  con la semilla `SURFACE_SEED` (`src/config.rs`) y se quedan solo donde un ruido supera
+  un umbral, para que se agrupen en manchas, y donde el terreno del shader del planeta
+  lo permite, y lejos de los otros objetos de su tipo (`spacing`). Misma semilla,
+  mismas posiciones; `N` cambia la semilla en vivo. Cuántos
+  hay de cada tipo, su tamaño y cómo se agrupan se ajustan en el campo `surface` de cada
+  planeta en `src/scene/planets.rs`.
+- **Orientación** (`scene::surface::surface_frame`): cada objeto se para con su `+y`
+  perpendicular al suelo y con un giro propio sobre ese eje. Su matriz es
+  `planet_frame * surface_frame * escala`, así que orbita y gira con el planeta.
+- **Aparición:** desde lejos no se dibujan. Al acercarse la nave brotan del suelo,
+  primero los que quedan justo debajo de ella, y se esconden al alejarse. Depende de la
+  cercanía, no del tiempo.
+- **Shaders** (`src/shaders/props.rs`): basalto, cristal, follaje, paja y pared de
+  barro. Los modelos les pasan datos por vértice en `uv` (profundidad del poro, altura
+  del cristal, ángulo de la puerta).
+
 ## Estructura
 
 ```
@@ -100,10 +133,12 @@ src/
   config.rs          resolución, campo de visión, planos, semilla, rutas
   math/              Mat4 y Quat propios
   mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ, icosfera
+    shapes.rs        modelos de los objetos de superficie
   render/            cámara, contexto del cuadro, pipeline, rasterizador,
                      framebuffer, fondo, contadores
   scene/             SceneObject, Collider y el sistema solar
-    planets.rs       datos de cada cuerpo: radio, órbita, giro, material, lunas
+    planets.rs       datos de cada cuerpo: radio, órbita, giro, material, lunas, superficie
+    surface.rs       reparto y orientación de los objetos de superficie
   ship/              física de la nave, cámara en tercera persona y controles
   simulation.rs      avance del mundo en pasos fijos
   shaders/           Material, shaders y funciones de ruido
@@ -153,7 +188,8 @@ Para que las tres partes del proyecto encajen:
   se pone en el campo `material` de su entrada. Ejemplo: `src/shaders/ship.rs`.
 - **Un objeto sobre un planeta:** su matriz de modelo es
   `SolarSystem::planet_frame(planeta, tiempo) * posición_local`. Así orbita y gira con el
-  planeta.
+  planeta. Para repartir muchos, se agrega un `Prop` en `src/scene/surface.rs` con su
+  malla y su material, y una entrada en el campo `surface` del planeta.
 - **Un objeto:** construir un `SceneObject` con su malla (`Arc<Mesh>`, compartida entre
   copias), su matriz de modelo y su material, y agregarlo a la lista del cuadro.
 - **Un modelo de Blender:** exportar OBJ con triángulos o polígonos y normales, ponerlo
@@ -182,6 +218,10 @@ Ryzen 7 8845HS, 800×450, `--benchmark` (varía según el estado del equipo):
 - **Descarte** (`src/render/frustum.rs`): antes de transformar los vértices de un
   objeto, se prueba su esfera envolvente contra los seis planos de la vista. Si queda
   fuera, el objeto se salta entero.
+
+- **Objetos pequeños** (`render/pipeline.rs`): el trabajo de un objeto se reparte entre
+  hilos solo si tiene suficientes vértices o fragmentos. Con cientos de objetos de
+  superficie de pocos triángulos, coordinar los hilos costaba más que dibujarlos.
 
 El HUD muestra los contadores de objetos y triángulos, y `L` y `F` apagan cada
 optimización para compararlas en vivo. `--benchmark` mide cada pose con y sin ellas.

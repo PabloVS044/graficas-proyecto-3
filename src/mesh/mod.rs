@@ -2,6 +2,7 @@
 
 pub mod icosphere;
 mod obj;
+pub mod shapes;
 
 pub use icosphere::icosphere;
 pub use obj::{Normals, Obj};

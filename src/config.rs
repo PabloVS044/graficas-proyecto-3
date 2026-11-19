@@ -19,6 +19,10 @@ pub const FAR_PLANE: f32 = 1000.0;
 /// Semilla de todo el ruido procedural. Misma semilla, mismo sistema solar.
 pub const NOISE_SEED: u32 = 7;
 
+/// Semilla de dónde quedan los objetos sobre los planetas. En la ventana, `N`
+/// pasa a la siguiente.
+pub const SURFACE_SEED: u32 = 1;
+
 pub const SHIP_MODEL_PATH: &str = "assets/nave_graficas.obj";
 /// Esfera para las pruebas del cargador OBJ. La escena usa la icosfera.
 #[cfg(test)]

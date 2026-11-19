@@ -8,6 +8,7 @@
 //! Unidades: distancias en unidades del mundo, ángulos en radianes,
 //! velocidades en radianes por segundo de simulación.
 
+use super::surface::{Ground, Prop, SurfaceSpec};
 use crate::shaders::{Material, color};
 
 pub struct SunSpec {
@@ -35,6 +36,8 @@ pub struct PlanetSpec {
     pub axial_tilt: f32,
     pub material: Material,
     pub moons: &'static [MoonSpec],
+    /// Objetos sobre su superficie. Ver `surface.rs`.
+    pub surface: &'static [SurfaceSpec],
 }
 
 /// Una luna orbita alrededor de su planeta y siempre le muestra la misma cara.
@@ -65,6 +68,26 @@ pub const PLANETS: &[PlanetSpec] = &[
         axial_tilt: 0.3,
         material: Material::Jungle,
         moons: &[],
+        surface: &[
+            SurfaceSpec {
+                prop: Prop::Tree,
+                count: 450,
+                ground: Ground::Forest,
+                cluster_scale: 3.0,
+                cluster_threshold: 0.47,
+                size: (0.18, 0.32),
+                spacing: 0.025,
+            },
+            SurfaceSpec {
+                prop: Prop::Hut,
+                count: 160,
+                ground: Ground::Settlement,
+                cluster_scale: 1.0,
+                cluster_threshold: 0.0,
+                size: (0.2, 0.28),
+                spacing: 0.06,
+            },
+        ],
     },
     PlanetSpec {
         name: "Ambar",
@@ -86,6 +109,7 @@ pub const PLANETS: &[PlanetSpec] = &[
             orbit_tilt: 0.35,
             material: Material::Lambert { albedo: color(0.65, 0.65, 0.65) },
         }],
+        surface: &[],
     },
     PlanetSpec {
         name: "Kryos",
@@ -99,6 +123,15 @@ pub const PLANETS: &[PlanetSpec] = &[
         axial_tilt: 0.5,
         material: Material::Ice,
         moons: &[],
+        surface: &[SurfaceSpec {
+            prop: Prop::Crystal,
+            count: 230,
+            ground: Ground::IceCrack,
+            cluster_scale: 2.0,
+            cluster_threshold: 0.2,
+            size: (0.22, 0.45),
+            spacing: 0.13,
+        }],
     },
     PlanetSpec {
         name: "Ignis",
@@ -112,6 +145,15 @@ pub const PLANETS: &[PlanetSpec] = &[
         axial_tilt: 0.2,
         material: Material::Volcanic,
         moons: &[],
+        surface: &[SurfaceSpec {
+            prop: Prop::Rock,
+            count: 150,
+            ground: Ground::Crust,
+            cluster_scale: 2.5,
+            cluster_threshold: 0.25,
+            size: (0.25, 0.5),
+            spacing: 0.12,
+        }],
     },
     PlanetSpec {
         name: "Eco",
@@ -125,5 +167,6 @@ pub const PLANETS: &[PlanetSpec] = &[
         axial_tilt: 0.15,
         material: Material::Dormant,
         moons: &[],
+        surface: &[],
     },
 ];

@@ -14,6 +14,10 @@ use crate::mesh::Vertex;
 use crate::scene::{self, SceneObject};
 use crate::shaders;
 
+/// Menos elementos que esto por tarea no se reparten entre hilos: en objetos
+/// pequeños coordinar los hilos cuesta más que el trabajo.
+const PARALLEL_MIN_ITEMS: usize = 512;
+
 /// Vértice ya proyectado: lo que el rasterizador necesita.
 #[derive(Clone, Copy, Debug)]
 pub struct ScreenVertex {
@@ -113,11 +117,13 @@ pub fn draw_object(framebuffer: &mut Framebuffer, object: &SceneObject, frame: &
         .mesh
         .vertices
         .par_iter()
+        .with_min_len(PARALLEL_MIN_ITEMS)
         .map(|vertex| vertex_shader(vertex, &object.model, &model_view_projection))
         .collect();
 
     let batch = transformed
         .par_chunks_exact(3)
+        .with_min_len(PARALLEL_MIN_ITEMS / 3)
         .fold(RasterBatch::default, |mut batch, triangle| {
             match clip::clip_near(triangle, frame.near) {
                 Clipped::Inside => batch.rasterize(triangle, width, height),
@@ -155,6 +161,7 @@ pub fn draw_object(framebuffer: &mut Framebuffer, object: &SceneObject, frame: &
 
     let shaded: Vec<(usize, Vector3)> = visible
         .par_iter()
+        .with_min_len(PARALLEL_MIN_ITEMS)
         .map(|(index, fragment)| (*index, shaders::shade(&object.material, fragment, frame, &object_context)))
         .collect();
 

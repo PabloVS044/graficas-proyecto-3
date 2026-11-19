@@ -6,8 +6,9 @@ use std::sync::Arc;
 use raylib::math::Vector3;
 
 use super::planets::{MoonSpec, PLANETS, PlanetSpec, SUN};
+use super::surface::{self, Placement, PropMeshes};
 use super::{Collider, GRAVITY_PER_RADIUS, SceneObject, fit_to_radius, proximity};
-use crate::config::{RENDER_HEIGHT, SHIP_MODEL_PATH};
+use crate::config::{RENDER_HEIGHT, SHIP_MODEL_PATH, SURFACE_SEED};
 use crate::render::Camera;
 use crate::math::{Mat4, Quat};
 use crate::mesh::{Mesh, Normals, Obj, icosphere};
@@ -40,11 +41,19 @@ pub struct SolarSystem {
     /// Una icosfera por nivel de subdivisión, de 0 a `MAX_SPHERE_LEVEL`.
     spheres: Vec<Arc<Mesh>>,
     ship: Arc<Mesh>,
+    props: PropMeshes,
+    /// Objetos de superficie de cada planeta, en el orden de `PLANETS`.
+    placements: Vec<Vec<Placement>>,
+    surface_seed: u32,
 }
 
 /// Posición en una órbita circular: gira en su plano y después se inclina.
 fn orbit_position(radius: f32, phase: f32, speed: f32, tilt: f32, time: f32) -> Vector3 {
     (Mat4::rotation_x(tilt) * Mat4::rotation_y(phase + speed * time)).transform_point(Vector3::new(radius, 0.0, 0.0))
+}
+
+fn place_surfaces(seed: u32) -> Vec<Vec<Placement>> {
+    PLANETS.iter().map(|planet| surface::place(planet.surface, seed)).collect()
 }
 
 fn moon_offset(moon: &MoonSpec, time: f32) -> Vector3 {
@@ -56,7 +65,20 @@ impl SolarSystem {
         Ok(SolarSystem {
             spheres: (0..=MAX_SPHERE_LEVEL).map(|level| Arc::new(icosphere(level))).collect(),
             ship: Arc::new(Obj::load(SHIP_MODEL_PATH)?.to_mesh(Normals::Authored)),
+            props: PropMeshes::build(),
+            placements: place_surfaces(SURFACE_SEED),
+            surface_seed: SURFACE_SEED,
         })
+    }
+
+    pub fn surface_seed(&self) -> u32 {
+        self.surface_seed
+    }
+
+    /// Vuelve a repartir los objetos de superficie con otra semilla.
+    pub fn set_surface_seed(&mut self, seed: u32) {
+        self.surface_seed = seed;
+        self.placements = place_surfaces(seed);
     }
 
     /// El sol está en el origen y es la luz de la escena.
@@ -174,8 +196,10 @@ impl SolarSystem {
 
         let mut objects = vec![sphere("Sol", Mat4::translation(self.light_position()), SUN.radius, SUN.material)];
 
-        for planet in PLANETS {
-            objects.push(sphere(planet.name, self.planet_frame(planet, time), planet.radius, planet.material));
+        for (planet, placements) in PLANETS.iter().zip(&self.placements) {
+            let frame = self.planet_frame(planet, time);
+            objects.push(sphere(planet.name, frame, planet.radius, planet.material));
+            surface::push_objects(&mut objects, &self.props, planet, placements, frame, ship.position);
 
             let center = self.planet_center(planet, time);
             for moon in planet.moons {
