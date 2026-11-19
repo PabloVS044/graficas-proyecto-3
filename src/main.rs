@@ -47,7 +47,8 @@ impl World {
             self.scene.light_position(),
             &self.noise,
         )
-        .with_ship(ship.position);
+        .with_ship(ship.position)
+        .with_culling(options.culling);
         let objects = self.scene.objects(time, ship, camera, options.detail);
         render::render_frame(framebuffer, &self.background, &objects, &frame)
     }
@@ -58,20 +59,22 @@ impl World {
 #[derive(Clone, Copy, PartialEq)]
 struct Options {
     detail: Detail,
+    culling: bool,
 }
 
 impl Options {
-    const DEFAULT: Options = Options { detail: Detail::ByDistance };
+    const DEFAULT: Options = Options { detail: Detail::ByDistance, culling: true };
     /// Todo apagado: lo que costaría dibujar sin optimizaciones.
-    const NONE: Options = Options { detail: Detail::Max };
+    const NONE: Options = Options { detail: Detail::Max, culling: false };
 
     /// Texto para el HUD, con la tecla que cambia cada opción.
-    fn lines(&self) -> [String; 1] {
+    fn lines(&self) -> [String; 2] {
         let detail = match self.detail {
             Detail::ByDistance => "por distancia",
             Detail::Max => "siempre maximo",
         };
-        [format!("detalle de esferas: {detail} (L cambia)")]
+        let culling = if self.culling { "activo" } else { "apagado" };
+        [format!("detalle de esferas: {detail} (L cambia)"), format!("descarte fuera de vista: {culling} (F cambia)")]
     }
 }
 
@@ -129,6 +132,9 @@ fn run_window(world: &World) {
         }
         if window.is_key_pressed(KeyboardKey::KEY_L) {
             options.detail = if options.detail == Detail::ByDistance { Detail::Max } else { Detail::ByDistance };
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_F) {
+            options.culling = !options.culling;
         }
         if window.is_key_pressed(KeyboardKey::KEY_C) {
             view = if view == View::Chase { View::Inspect } else { View::Chase };
@@ -223,7 +229,7 @@ fn draw_hud(
         drawing.draw_text(line, 10, 182 + row as i32 * 24, SIZE, Color::LIME);
     }
     if simulation.paused {
-        drawing.draw_text("PAUSA", 10, 230, SIZE, Color::YELLOW);
+        drawing.draw_text("PAUSA", 10, 254, SIZE, Color::YELLOW);
     }
 
     let controls = match view {

@@ -43,6 +43,9 @@ pub struct FrameContext {
     /// Dónde está la nave. Los planetas reaccionan cuando se acerca. Mientras
     /// no se indique con `with_ship`, es la posición de la cámara.
     pub ship_position: Vector3,
+    /// Si se descartan los objetos que quedan fuera de la vista. Se apaga para
+    /// comparar cuánto trabajo ahorra.
+    pub culling: bool,
     pub noise: OpenSimplex,
 }
 
@@ -70,8 +73,14 @@ impl FrameContext {
             time,
             light_position,
             ship_position: camera.position,
+            culling: true,
             noise: *noise,
         }
+    }
+
+    pub fn with_culling(mut self, culling: bool) -> Self {
+        self.culling = culling;
+        self
     }
 
     pub fn with_ship(mut self, ship_position: Vector3) -> Self {

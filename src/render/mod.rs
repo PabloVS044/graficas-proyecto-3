@@ -10,6 +10,7 @@ mod clip;
 mod context;
 mod fragment;
 mod framebuffer;
+mod frustum;
 mod pipeline;
 mod raster;
 mod stats;
@@ -19,6 +20,7 @@ pub use camera::{Camera, CameraRays, OrbitController};
 pub use context::{FrameContext, ObjectContext};
 pub use fragment::Fragment;
 pub use framebuffer::Framebuffer;
+use frustum::Frustum;
 pub use stats::RenderStats;
 
 use crate::scene::SceneObject;
@@ -35,7 +37,17 @@ pub fn render_frame(
     background.paint(framebuffer, frame);
     framebuffer.clear_depth();
 
+    let frustum = Frustum::from_view_projection(&frame.view_projection);
     for object in objects {
+        // Si la esfera envolvente queda fuera de la vista, ningún triángulo del
+        // objeto puede verse: se descarta sin transformar sus vértices.
+        if frame.culling {
+            let (center, radius) = pipeline::world_bounds(object);
+            if !frustum.contains_sphere(center, radius) {
+                stats.objects_culled += 1;
+                continue;
+            }
+        }
         pipeline::draw_object(framebuffer, object, frame, &mut stats);
     }
 
