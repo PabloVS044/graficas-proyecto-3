@@ -10,7 +10,8 @@ use noise::OpenSimplex;
 use raylib::math::{Vector2, Vector3};
 
 use super::{Mesh, Vertex, icosphere};
-use crate::shaders::noise_helpers::sample;
+use crate::shaders::noise_helpers::{sample, worley};
+use crate::shaders::smoothstep;
 
 /// Acumula triángulos con su normal de cara.
 #[derive(Default)]
@@ -21,9 +22,16 @@ struct Builder {
 impl Builder {
     /// `a`, `b`, `c` en orden antihorario visto desde afuera.
     fn triangle(&mut self, a: Vector3, b: Vector3, c: Vector3) {
+        self.tagged_triangle([a, b, c], [0.0; 3]);
+    }
+
+    /// Como `triangle`, con un valor por esquina guardado en `uv.x` para que el
+    /// shader lo reciba interpolado.
+    fn tagged_triangle(&mut self, corners: [Vector3; 3], tags: [f32; 3]) {
+        let [a, b, c] = corners;
         let normal = (b - a).cross(c - a).normalize();
-        for position in [a, b, c] {
-            self.vertices.push(Vertex { position, normal, uv: Vector2::zero() });
+        for (position, tag) in corners.into_iter().zip(tags) {
+            self.vertices.push(Vertex { position, normal, uv: Vector2::new(tag, 0.0) });
         }
     }
 
@@ -57,15 +65,22 @@ fn band(builder: &mut Builder, lower: &[Vector3], upper: &[Vector3]) {
 /// triángulos vecinos siguen compartiendo sus esquinas y no se abren huecos.
 fn lumpy_sphere(level: u32, seed: u32, frequency: f32, amount: f32, scale: Vector3, center: Vector3) -> Builder {
     let noise = OpenSimplex::new(seed);
-    let displace = |p: Vector3| {
-        let bump = 1.0 + sample(&noise, p * frequency) * amount;
-        let p = p * bump;
-        Vector3::new(p.x * scale.x, p.y * scale.y, p.z * scale.z) + center
+    displaced_sphere(level, scale, center, |p| (1.0 + sample(&noise, p * frequency) * amount, 0.0))
+}
+
+/// Icosfera deformada por `shape`, que devuelve para cada punto de la esfera
+/// de radio 1 cuánto se aleja del centro y un valor para el shader.
+fn displaced_sphere(level: u32, scale: Vector3, center: Vector3, shape: impl Fn(Vector3) -> (f32, f32)) -> Builder {
+    let place = |p: Vector3| {
+        let (distance, tag) = shape(p);
+        let p = p * distance;
+        (Vector3::new(p.x * scale.x, p.y * scale.y, p.z * scale.z) + center, tag)
     };
 
     let mut builder = Builder::default();
     for t in icosphere(level).vertices.chunks_exact(3) {
-        builder.triangle(displace(t[0].position), displace(t[1].position), displace(t[2].position));
+        let [(a, ta), (b, tb), (c, tc)] = [place(t[0].position), place(t[1].position), place(t[2].position)];
+        builder.tagged_triangle([a, b, c], [ta, tb, tc]);
     }
     builder
 }
@@ -93,12 +108,29 @@ pub fn tree_crown(variant: u32) -> Mesh {
     crown.build()
 }
 
+/// Peña de basalto: más alta que ancha, irregular y con hendiduras. Cada
+/// hendidura es una celda de Worley hundida; su profundidad (0 a 1) va en
+/// `uv.x` para que el shader encienda la lava dentro.
+pub fn basalt_rock(variant: u32) -> Mesh {
+    let seed = 300 + variant;
+    let noise = OpenSimplex::new(seed);
+    let builder = displaced_sphere(2, Vector3::new(0.30, 0.72, 0.27), Vector3::new(0.0, 0.50, 0.0), |p| {
+        // Ancha abajo y en punta arriba, con bultos grandes y aristas.
+        let taper = 1.0 - (p.y * 0.5 + 0.5).powf(1.5) * 0.6;
+        let bumps = 1.0 + sample(&noise, p * 1.9) * 0.35 + sample(&noise, p * 5.0) * 0.1;
+        let (f1, _, _) = worley(p * 2.2 + Vector3::new(variant as f32 * 5.0, 0.0, 0.0), seed);
+        let pore = 1.0 - smoothstep(0.1, 0.45, f1);
+        (taper * bumps - pore * 0.22, pore)
+    });
+    builder.build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn meshes() -> Vec<Mesh> {
-        vec![tree_trunk(), tree_crown(0), tree_crown(1)]
+        vec![tree_trunk(), tree_crown(0), tree_crown(1), basalt_rock(0), basalt_rock(1)]
     }
 
     /// Sin triángulos degenerados: una normal con largo 1 en cada vértice.
@@ -121,6 +153,7 @@ mod tests {
     fn crowns_face_outwards() {
         for variant in 0..3 {
             assert!(signed_volume(&tree_crown(variant)) > 0.0);
+            assert!(signed_volume(&basalt_rock(variant)) > 0.0);
         }
     }
 
@@ -134,6 +167,13 @@ mod tests {
             let outward = Vector3::new(centroid.x - lean, 0.0, centroid.z);
             assert!(t[0].normal.dot(outward) > 0.0, "triángulo al revés");
         }
+    }
+
+    #[test]
+    fn rocks_have_pores() {
+        let rock = basalt_rock(0);
+        let deep = rock.vertices.iter().filter(|v| v.uv.x > 0.5).count();
+        assert!(deep > 0 && deep < rock.vertices.len() / 2);
     }
 
     #[test]

@@ -11,6 +11,7 @@
 
 use std::f32::consts::TAU;
 
+use noise::OpenSimplex;
 use raylib::math::Vector3;
 
 use super::noise_helpers::{cell_random, fbm, sample, worley};
@@ -58,20 +59,31 @@ fn heat_wave(distance: f32, time: f32, proximity: f32) -> f32 {
     ring * reach * proximity
 }
 
+/// Placas: el borde entre dos celdas de Worley es la grieta. Un poco de ruido
+/// dobla los bordes para que no se vean rectos.
+fn plates(noise: &OpenSimplex, p: Vector3) -> (f32, f32, (i32, i32, i32)) {
+    let warp = Vector3::new(
+        sample(noise, p * 3.0),
+        sample(noise, p * 3.0 + color(17.0, 0.0, 0.0)),
+        sample(noise, p * 3.0 + color(0.0, 29.0, 0.0)),
+    ) * 0.08;
+    worley((p + warp) * PLATE_SCALE, 40)
+}
+
+/// Si en `p` hay corteza firme: lejos de las grietas y fuera de los cráteres.
+pub fn is_solid_crust(noise: &OpenSimplex, p: Vector3) -> bool {
+    let (nearest, second, plate) = plates(noise, p.normalize());
+    let has_volcano = cell_random(plate, 42) < VOLCANO_CHANCE;
+    second - nearest > (CRACK_WIDTH + CRACK_OPENING) * 3.0 && !(has_volcano && nearest < 0.35)
+}
+
 pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) -> Vector3 {
     let noise = &frame.noise;
     let time = frame.time;
     let near = object.proximity;
     let p = fragment.object_position.normalize();
 
-    // Placas: el borde entre dos celdas de Worley es la grieta. Un poco de ruido
-    // dobla los bordes para que no se vean rectos.
-    let warp = Vector3::new(
-        sample(noise, p * 3.0),
-        sample(noise, p * 3.0 + color(17.0, 0.0, 0.0)),
-        sample(noise, p * 3.0 + color(0.0, 29.0, 0.0)),
-    ) * 0.08;
-    let (nearest, second, plate) = worley((p + warp) * PLATE_SCALE, 40);
+    let (nearest, second, plate) = plates(noise, p);
     let edge = second - nearest;
     let width = CRACK_WIDTH + CRACK_OPENING * near;
     let crack = 1.0 - smoothstep(width * 0.4, width, edge);

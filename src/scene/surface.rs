@@ -36,6 +36,7 @@ const ATTEMPTS_PER_OBJECT: usize = 40;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Prop {
     Tree,
+    Rock,
 }
 
 /// Dónde puede ir un objeto según el terreno del planeta.
@@ -43,6 +44,8 @@ pub enum Prop {
 pub enum Ground {
     /// Selva de Jungla: tierra firme, sin mar ni mesetas.
     Forest,
+    /// Placas de basalto de Ignis, lejos de la lava.
+    Crust,
 }
 
 /// Cuántos objetos de un tipo lleva un planeta y cómo se reparten.
@@ -89,6 +92,7 @@ fn point_on_sphere(u: f32, v: f32) -> Vector3 {
 fn ground_allows(ground: Ground, terrain: &OpenSimplex, p: Vector3) -> bool {
     match ground {
         Ground::Forest => shaders::is_forest(terrain, p),
+        Ground::Crust => shaders::is_solid_crust(terrain, p),
     }
 }
 
@@ -151,6 +155,7 @@ pub fn surface_frame(direction: Vector3, yaw: f32, radius: f32) -> Mat4 {
 pub struct PropMeshes {
     trunk: Arc<Mesh>,
     crowns: Vec<Arc<Mesh>>,
+    rocks: Vec<Arc<Mesh>>,
 }
 
 impl PropMeshes {
@@ -158,15 +163,18 @@ impl PropMeshes {
         PropMeshes {
             trunk: Arc::new(shapes::tree_trunk()),
             crowns: (0..3).map(|variant| Arc::new(shapes::tree_crown(variant))).collect(),
+            rocks: (0..3).map(|variant| Arc::new(shapes::basalt_rock(variant))).collect(),
         }
     }
 
     /// Piezas de un objeto con su material.
     fn parts(&self, placement: &Placement) -> Vec<(Arc<Mesh>, Material)> {
         let v = placement.variety;
+        let pick = |meshes: &[Arc<Mesh>]| meshes[(v * meshes.len() as f32) as usize % meshes.len()].clone();
         match placement.prop {
+            Prop::Rock => vec![(pick(&self.rocks), Material::Basalt)],
             Prop::Tree => {
-                let crown = self.crowns[(v * self.crowns.len() as f32) as usize % self.crowns.len()].clone();
+                let crown = pick(&self.crowns);
                 let leaves = mix(color(0.10, 0.36, 0.08), color(0.34, 0.55, 0.10), v);
                 vec![
                     (self.trunk.clone(), Material::Lambert { albedo: color(0.40, 0.25, 0.13) }),
@@ -249,11 +257,25 @@ mod tests {
         }
     }
 
+    fn planet(name: &str) -> &'static PlanetSpec {
+        PLANETS.iter().find(|planet| planet.name == name).unwrap()
+    }
+
     #[test]
     fn trees_only_grow_in_the_forest() {
         let terrain = OpenSimplex::new(NOISE_SEED);
         for placement in place(jungle().surface, 7) {
             assert!(shaders::is_forest(&terrain, placement.direction));
+        }
+    }
+
+    #[test]
+    fn rocks_stay_out_of_the_lava() {
+        let terrain = OpenSimplex::new(NOISE_SEED);
+        let rocks = place(planet("Ignis").surface, 7);
+        assert!(!rocks.is_empty());
+        for placement in rocks {
+            assert!(shaders::is_solid_crust(&terrain, placement.direction));
         }
     }
 

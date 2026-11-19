@@ -125,7 +125,14 @@ pub const PLANETS: &[PlanetSpec] = &[
         axial_tilt: 0.2,
         material: Material::Volcanic,
         moons: &[],
-        surface: &[],
+        surface: &[SurfaceSpec {
+            prop: Prop::Rock,
+            count: 400,
+            ground: Ground::Crust,
+            cluster_scale: 2.5,
+            cluster_threshold: 0.38,
+            size: (0.25, 0.5),
+        }],
     },
     PlanetSpec {
         name: "Eco",
