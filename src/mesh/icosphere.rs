@@ -16,6 +16,7 @@ use raylib::math::{Vector2, Vector3};
 use super::{Mesh, Vertex};
 
 /// Triángulos de una icosfera con `level` subdivisiones.
+#[cfg(test)]
 pub fn triangle_count(level: u32) -> usize {
     20 * 4usize.pow(level)
 }
