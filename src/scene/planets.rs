@@ -76,7 +76,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: -0.03,
         spin_speed: 0.2,
         axial_tilt: 0.1,
-        material: Material::Lambert { albedo: color(0.85, 0.72, 0.25) },
+        material: Material::GasGiant,
         moons: &[MoonSpec {
             name: "Luna de Ambar",
             radius: 1.6,

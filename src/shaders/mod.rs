@@ -6,6 +6,7 @@
 //! en el `match` de abajo.
 
 mod basic;
+mod gas_giant;
 mod jungle;
 mod ship;
 mod volcanic;
@@ -28,6 +29,9 @@ pub enum Material {
     /// Corteza de basalto partida en placas con lava en las grietas y volcanes.
     /// Al acercarse la nave, las grietas se abren y salen ondas de calor.
     Volcanic,
+    /// Gigante gaseoso con bandas que giran a distinta velocidad, una tormenta
+    /// en espiral y relámpagos. La nave cerca agita la tormenta.
+    GasGiant,
     /// Casco desgastado con franjas rojas y motores encendidos.
     /// `throttle` va de 0 (reposo) a 1 (turbo); `heat`, de 0 (frío) a 1
     /// (al rojo vivo, junto al sol o a un planeta volcánico).
@@ -44,6 +48,7 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, obj
         Material::Ship { throttle, heat } => ship::shade(fragment, frame, throttle, heat),
         Material::Jungle => jungle::shade(fragment, frame, object),
         Material::Volcanic => volcanic::shade(fragment, frame, object),
+        Material::GasGiant => gas_giant::shade(fragment, frame, object),
         Material::Normals => basic::normals(fragment),
     }
 }
