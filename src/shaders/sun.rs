@@ -42,7 +42,7 @@ pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) 
     let boil = frame.time * BOIL_SPEED * (1.0 + near * BOIL_EXCITEMENT);
 
     // Turbulencia grande que deforma todo lo demás.
-    let warp = fbm(noise, p * 2.5 + color(0.0, boil, 0.0), 3) - 0.5;
+    let warp = fbm(noise, p * 2.5 + color(0.0, boil, 0.0), 2) - 0.5;
     let q = p + Vector3::new(warp, -warp, warp) * 0.3;
 
     // Granulación: el centro de cada celda de convección es más caliente que
@@ -50,11 +50,11 @@ pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) 
     let (nearest, second, _) = worley(q * GRANULE_SCALE + color(boil * 2.0, 0.0, -boil), 90);
     let granule = smoothstep(0.0, 0.5, second - nearest);
 
-    let plasma = fbm(noise, q * 5.0 + color(-boil, boil * 0.5, 0.0), 4);
+    let plasma = fbm(noise, q * 5.0 + color(-boil, boil * 0.5, 0.0), 3);
     let mut temperature = 0.4 + (plasma - 0.5) * 0.9 + granule * 0.18;
 
     // Manchas solares: zonas más frías y oscuras que se mueven muy despacio.
-    let spots = smoothstep(SUNSPOT_THRESHOLD, SUNSPOT_THRESHOLD + 0.06, fbm(noise, p * 2.2 + color(5.0, boil * 0.2, 9.0), 3));
+    let spots = smoothstep(SUNSPOT_THRESHOLD, SUNSPOT_THRESHOLD + 0.06, fbm(noise, p * 2.2 + color(5.0, boil * 0.2, 9.0), 2));
     temperature -= spots * 0.55;
 
     // Filamentos: líneas donde el ruido cruza por 0, como los ríos de Jungla.

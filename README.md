@@ -9,8 +9,25 @@ rasterización, la prueba de profundidad y los shaders están escritos en este
 repositorio.
 
 **Estado:** renderer, vuelo de la nave en tercera persona y sistema solar con cinco
-planetas y una luna. El primer planeta (Jungla) tiene su shader; los demás son de color
-liso por ahora.
+planetas y una luna. El sol y cada planeta tienen su propio shader, y todos reaccionan
+cuando la nave se acerca.
+
+## Planetas
+
+Cada cuerpo recibe en `ObjectContext` qué tan cerca está la nave (`proximity`, de 0 a
+1) y la dirección hacia ella en su propio espacio (`ship_direction`), que en la esfera
+es el punto justo debajo de la nave. Con eso los shaders cambian al acercarse, sin
+cambiar de escena. Al acercarse, el HUD muestra el nombre del planeta y lleva la cuenta
+de los descubiertos.
+
+| Cuerpo | Shader | Qué pasa al acercarse |
+|---|---|---|
+| Sol | `shaders/sun.rs`: plasma que hierve, granulación (Worley), manchas, filamentos | Hierve más rápido, se encienden los filamentos y brilla más; el casco se calienta |
+| Jungla | `shaders/jungle.rs`: mar, selva, ríos, nubes con sombra, luces de noche | Se abre un claro en las nubes bajo la nave y se avivan las luciérnagas |
+| Ambar | `shaders/gas_giant.rs`: bandas con corrientes, tormenta en espiral, relámpagos | La tormenta gira más rápido y hay más relámpagos |
+| Kryos | `shaders/ice.rs`: hielo agrietado (Worley), reflejo, auroras polares | Las grietas se encienden en ondas cian desde la nave; las auroras se intensifican |
+| Ignis | `shaders/volcanic.rs`: placas de basalto, lava que fluye, volcanes | Las grietas se abren, salen ondas de calor y erupciona más; el casco se pone al rojo |
+| Eco | `shaders/dormant.rs`: roca con red hexagonal tallada | La red se enciende hexágono por hexágono desde la nave, con pulsos y glifos |
 
 ## Cómo se ejecuta
 
@@ -26,6 +43,16 @@ cargo test --release                         # pruebas
 ```
 
 Se ejecuta desde la raíz del repositorio: los modelos se cargan de `assets/`.
+`--screenshot` guarda también cada planeta con la nave cerca (`<prefijo>-<planeta>-cerca.png`).
+
+**Windows:** si la compilación falla con `'vcruntime.h' file not found`, `bindgen` no
+encuentra los headers de MSVC (pasa cuando hay una instalación de Visual Studio sin las
+herramientas de C++). Se le indica la carpeta con una variable de entorno, ajustando la
+versión a la que esté instalada:
+
+```powershell
+$env:BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.43.34808/include"'
+```
 
 ### Controles
 
