@@ -163,12 +163,90 @@ pub fn ice_crystals(variant: u32) -> Mesh {
     builder.build()
 }
 
+/// Anillo con el radio de cada punto un poco distinto: nada queda derecho.
+fn crooked_ring(sides: usize, radius: f32, y: f32, wobble: f32, random: &dyn Fn(u32) -> f32, salt: u32) -> Vec<Vector3> {
+    (0..sides)
+        .map(|i| {
+            let angle = i as f32 / sides as f32 * TAU;
+            let r = radius * (1.0 + (random(salt + i as u32) - 0.5) * wobble);
+            let y = y + (random(salt + 50 + i as u32) - 0.5) * wobble * 0.3;
+            Vector3::new(angle.cos() * r, y, -angle.sin() * r)
+        })
+        .collect()
+}
+
+/// Paredes de una choza redonda de barro y palos, un poco chuecas. En `uv.x`
+/// va el ángulo alrededor de la choza (0 a 1); la puerta queda en 0, mirando
+/// hacia `+x`.
+pub fn hut_walls(variant: u32) -> Mesh {
+    let random = |salt: u32| cell_random((variant as i32, 11, 3), salt);
+    let sides = 9;
+    let base = crooked_ring(sides, 0.36, -0.08, 0.12, &random, 0);
+    let top = crooked_ring(sides, 0.33, 0.40, 0.12, &random, 100);
+
+    let mut builder = Builder::default();
+    let around = |p: Vector3| {
+        let a = (-p.z).atan2(p.x) / TAU;
+        if a < 0.0 { a + 1.0 } else { a }
+    };
+    for i in 0..sides {
+        let j = (i + 1) % sides;
+        let (a, b, c, d) = (base[i], base[j], top[j], top[i]);
+        builder.tagged_triangle([a, b, c], [around(a), around(b), around(c)]);
+        builder.tagged_triangle([a, c, d], [around(a), around(c), around(d)]);
+    }
+    builder.build()
+}
+
+/// Techo de paja en cono, más ancho que las paredes y con la punta torcida.
+/// Por la punta salen dos palos cruzados. En `uv.x` va la altura sobre el
+/// techo (0 en el borde, 1 en la punta) y en `uv.y` 1 para los palos.
+pub fn hut_roof(variant: u32) -> Mesh {
+    let random = |salt: u32| cell_random((variant as i32, 12, 4), salt);
+    let sides = 9;
+    let eave = crooked_ring(sides, 0.46, 0.36, 0.2, &random, 0);
+    let middle = crooked_ring(sides, 0.26, 0.6, 0.22, &random, 100);
+    let tip = Vector3::new((random(200) - 0.5) * 0.1, 0.9 + random(201) * 0.08, (random(202) - 0.5) * 0.1);
+    let height = |p: Vector3| ((p.y - 0.36) / (tip.y - 0.36)).clamp(0.0, 1.0);
+
+    let mut builder = Builder::default();
+    for i in 0..sides {
+        let j = (i + 1) % sides;
+        let (a, b, c, d) = (eave[i], eave[j], middle[j], middle[i]);
+        builder.tagged_triangle([a, b, c], [height(a), height(b), height(c)]);
+        builder.tagged_triangle([a, c, d], [height(a), height(c), height(d)]);
+        builder.tagged_triangle([d, c, tip], [height(d), height(c), 1.0]);
+        // El borde de abajo, para que el techo no se vea hueco desde abajo.
+        builder.tagged_triangle([eave[j], eave[i], Vector3::new(0.0, 0.4, 0.0)], [0.0; 3]);
+    }
+
+    // Dos palos que se cruzan en la punta.
+    for (k, angle) in [0.4f32, 2.0].into_iter().enumerate() {
+        let direction = Vector3::new(angle.cos() * 0.45, 1.0, -angle.sin() * 0.45).normalize();
+        let tilt = Mat4::translation(tip - direction * 0.12)
+            * Mat4::rotation(Quat::from_axis_angle(Vector3::new(0.0, 1.0, 0.0).cross(direction).normalize(), direction.y.acos()));
+        let lower = ring(4, 0.018, 0.0, 0.0, k as f32);
+        let upper = ring(4, 0.014, 0.26, 0.0, k as f32);
+        for i in 0..4 {
+            let j = (i + 1) % 4;
+            let corners = [lower[i], lower[j], upper[j], upper[i]].map(|p| tilt.transform_point(p));
+            for triangle in [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]] {
+                let n = (triangle[1] - triangle[0]).cross(triangle[2] - triangle[0]).normalize();
+                for position in triangle {
+                    builder.vertices.push(Vertex { position, normal: n, uv: Vector2::new(1.0, 1.0) });
+                }
+            }
+        }
+    }
+    builder.build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn meshes() -> Vec<Mesh> {
-        vec![tree_trunk(), tree_crown(0), tree_crown(1), basalt_rock(0), basalt_rock(1), ice_crystals(0), ice_crystals(1)]
+        vec![tree_trunk(), tree_crown(0), tree_crown(1), basalt_rock(0), basalt_rock(1), ice_crystals(0), ice_crystals(1), hut_walls(0), hut_roof(0)]
     }
 
     /// Sin triángulos degenerados: una normal con largo 1 en cada vértice.
@@ -193,6 +271,7 @@ mod tests {
             assert!(signed_volume(&tree_crown(variant)) > 0.0);
             assert!(signed_volume(&basalt_rock(variant)) > 0.0);
             assert!(signed_volume(&ice_crystals(variant)) > 0.0);
+            assert!(signed_volume(&hut_roof(variant)) > 0.0);
         }
     }
 

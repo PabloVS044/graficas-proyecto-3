@@ -183,11 +183,14 @@ fn fireflies(noise: &OpenSimplex, p: Vector3, time: f32) -> Vector3 {
     (color(0.72, 1.0, 0.22) * light * FIREFLY_BRIGHTNESS + haze) * swarm
 }
 
+fn settlement_value(noise: &OpenSimplex, p: Vector3) -> f32 {
+    fbm(noise, p * SETTLEMENT_SCALE + color(21.0, -6.0, 13.0), 3)
+}
+
 /// Luz de los asentamientos: zonas repartidas con ruido donde hay fogatas muy
 /// juntas, más un resplandor naranja que tiñe el suelo alrededor.
 fn settlements(noise: &OpenSimplex, p: Vector3, time: f32) -> Vector3 {
-    let value = fbm(noise, p * SETTLEMENT_SCALE + color(21.0, -6.0, 13.0), 3);
-    let area = smoothstep(SETTLEMENT_THRESHOLD, SETTLEMENT_THRESHOLD + 0.06, value);
+    let area = smoothstep(SETTLEMENT_THRESHOLD, SETTLEMENT_THRESHOLD + 0.06, settlement_value(noise, p));
     if area <= 0.0 {
         return Vector3::zero();
     }
@@ -202,10 +205,23 @@ fn terrain_height(noise: &OpenSimplex, p: Vector3) -> f32 {
     fbm(noise, p * CONTINENT_SCALE, 5)
 }
 
-/// Si en `p` hay selva: tierra firme, fuera de las mesetas de roca.
-pub fn is_forest(noise: &OpenSimplex, p: Vector3) -> bool {
-    let height = terrain_height(noise, p.normalize());
+/// Si en `p` hay tierra firme baja: ni mar ni mesetas de roca.
+fn is_lowland(noise: &OpenSimplex, p: Vector3) -> bool {
+    let height = terrain_height(noise, p);
     height > SEA_LEVEL + 0.01 && height < HIGHLAND_LEVEL - 0.02
+}
+
+/// Si en `p` hay selva: tierra baja fuera de los asentamientos, que quedan
+/// como claros.
+pub fn is_forest(noise: &OpenSimplex, p: Vector3) -> bool {
+    let p = p.normalize();
+    is_lowland(noise, p) && settlement_value(noise, p) < SETTLEMENT_THRESHOLD - 0.01
+}
+
+/// Si en `p` hay un asentamiento, donde de noche se ven las fogatas.
+pub fn is_settlement(noise: &OpenSimplex, p: Vector3) -> bool {
+    let p = p.normalize();
+    is_lowland(noise, p) && settlement_value(noise, p) > SETTLEMENT_THRESHOLD + 0.02
 }
 
 pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) -> Vector3 {

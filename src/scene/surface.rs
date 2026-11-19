@@ -38,6 +38,7 @@ pub enum Prop {
     Tree,
     Rock,
     Crystal,
+    Hut,
 }
 
 /// Dónde puede ir un objeto según el terreno del planeta.
@@ -45,6 +46,8 @@ pub enum Prop {
 pub enum Ground {
     /// Selva de Jungla: tierra firme, sin mar ni mesetas.
     Forest,
+    /// Claros de las aldeas de Jungla, donde de noche se ven las fogatas.
+    Settlement,
     /// Placas de basalto de Ignis, lejos de la lava.
     Crust,
     /// Grietas grandes del hielo de Kryos.
@@ -95,6 +98,7 @@ fn point_on_sphere(u: f32, v: f32) -> Vector3 {
 fn ground_allows(ground: Ground, terrain: &OpenSimplex, p: Vector3) -> bool {
     match ground {
         Ground::Forest => shaders::is_forest(terrain, p),
+        Ground::Settlement => shaders::is_settlement(terrain, p),
         Ground::Crust => shaders::is_solid_crust(terrain, p),
         Ground::IceCrack => shaders::is_on_big_crack(terrain, p),
     }
@@ -161,6 +165,8 @@ pub struct PropMeshes {
     crowns: Vec<Arc<Mesh>>,
     rocks: Vec<Arc<Mesh>>,
     crystals: Vec<Arc<Mesh>>,
+    hut_walls: Vec<Arc<Mesh>>,
+    hut_roofs: Vec<Arc<Mesh>>,
 }
 
 impl PropMeshes {
@@ -170,16 +176,23 @@ impl PropMeshes {
             crowns: (0..3).map(|variant| Arc::new(shapes::tree_crown(variant))).collect(),
             rocks: (0..3).map(|variant| Arc::new(shapes::basalt_rock(variant))).collect(),
             crystals: (0..4).map(|variant| Arc::new(shapes::ice_crystals(variant))).collect(),
+            hut_walls: (0..3).map(|variant| Arc::new(shapes::hut_walls(variant))).collect(),
+            hut_roofs: (0..3).map(|variant| Arc::new(shapes::hut_roof(variant))).collect(),
         }
     }
 
-    /// Piezas de un objeto con su material. `near` es la cercanía de la nave al planeta.
-    fn parts(&self, placement: &Placement, near: f32) -> Vec<(Arc<Mesh>, Material)> {
+    /// Piezas de un objeto con su material. `near` es la cercanía de la nave al
+    /// planeta y `ground_up`, el arriba del suelo donde está, en el mundo.
+    fn parts(&self, placement: &Placement, near: f32, ground_up: Vector3) -> Vec<(Arc<Mesh>, Material)> {
         let v = placement.variety;
         let pick = |meshes: &[Arc<Mesh>]| meshes[(v * meshes.len() as f32) as usize % meshes.len()].clone();
         match placement.prop {
             Prop::Rock => vec![(pick(&self.rocks), Material::Basalt)],
             Prop::Crystal => vec![(pick(&self.crystals), Material::Crystal { glow: near })],
+            Prop::Hut => vec![
+                (pick(&self.hut_walls), Material::HutWall { ground_up }),
+                (pick(&self.hut_roofs), Material::Thatch),
+            ],
             Prop::Tree => {
                 let crown = pick(&self.crowns);
                 let leaves = mix(color(0.10, 0.36, 0.08), color(0.34, 0.55, 0.10), v);
@@ -224,7 +237,8 @@ pub fn push_objects(
         let model = frame
             * surface_frame(placement.direction, placement.yaw, planet.radius - size * SINK)
             * Mat4::scale(size);
-        for (mesh, material) in meshes.parts(placement, near) {
+        let ground_up = frame.transform_direction(placement.direction);
+        for (mesh, material) in meshes.parts(placement, near, ground_up) {
             objects.push(SceneObject { name: planet.name, mesh, model, material });
         }
     }
@@ -271,8 +285,18 @@ mod tests {
     #[test]
     fn trees_only_grow_in_the_forest() {
         let terrain = OpenSimplex::new(NOISE_SEED);
-        for placement in place(jungle().surface, 7) {
+        for placement in place(jungle().surface, 7).into_iter().filter(|p| p.prop == Prop::Tree) {
             assert!(shaders::is_forest(&terrain, placement.direction));
+        }
+    }
+
+    #[test]
+    fn huts_stand_in_the_villages() {
+        let terrain = OpenSimplex::new(NOISE_SEED);
+        let huts: Vec<Placement> = place(jungle().surface, 7).into_iter().filter(|p| p.prop == Prop::Hut).collect();
+        assert!(!huts.is_empty());
+        for placement in huts {
+            assert!(shaders::is_settlement(&terrain, placement.direction));
         }
     }
 

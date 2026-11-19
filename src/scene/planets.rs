@@ -68,14 +68,24 @@ pub const PLANETS: &[PlanetSpec] = &[
         axial_tilt: 0.3,
         material: Material::Jungle,
         moons: &[],
-        surface: &[SurfaceSpec {
-            prop: Prop::Tree,
-            count: 450,
-            ground: Ground::Forest,
-            cluster_scale: 3.0,
-            cluster_threshold: 0.47,
-            size: (0.18, 0.32),
-        }],
+        surface: &[
+            SurfaceSpec {
+                prop: Prop::Tree,
+                count: 450,
+                ground: Ground::Forest,
+                cluster_scale: 3.0,
+                cluster_threshold: 0.47,
+                size: (0.18, 0.32),
+            },
+            SurfaceSpec {
+                prop: Prop::Hut,
+                count: 160,
+                ground: Ground::Settlement,
+                cluster_scale: 1.0,
+                cluster_threshold: 0.0,
+                size: (0.2, 0.28),
+            },
+        ],
     },
     PlanetSpec {
         name: "Ambar",

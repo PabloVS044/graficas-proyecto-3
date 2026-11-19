@@ -16,7 +16,7 @@ mod sun;
 mod volcanic;
 pub mod noise_helpers;
 
-pub use jungle::is_forest;
+pub use jungle::{is_forest, is_settlement};
 pub use ice::is_on_big_crack;
 pub use volcanic::is_solid_crust;
 
@@ -52,6 +52,10 @@ pub enum Material {
     /// Cristal de hielo que brilla por dentro; `glow` de 0 a 1 según la cercanía
     /// de la nave a su planeta.
     Crystal { glow: f32 },
+    /// Techo de paja de una choza.
+    Thatch,
+    /// Pared de barro de una choza, con el fuego encendido en la puerta.
+    HutWall { ground_up: Vector3 },
     /// Casco desgastado con franjas rojas y motores encendidos.
     /// `throttle` va de 0 (reposo) a 1 (turbo); `heat`, de 0 (frío) a 1
     /// (al rojo vivo, junto al sol o a un planeta volcánico).
@@ -72,6 +76,8 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, obj
         Material::Ice => ice::shade(fragment, frame, object),
         Material::Dormant => dormant::shade(fragment, frame, object),
         Material::Basalt => props::basalt(fragment, frame),
+        Material::Thatch => props::thatch(fragment, frame),
+        Material::HutWall { ground_up } => props::hut_wall(fragment, frame, ground_up),
         Material::Crystal { glow } => props::crystal(fragment, frame, glow),
         Material::Normals => basic::normals(fragment),
     }
