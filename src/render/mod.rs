@@ -10,8 +10,10 @@ mod clip;
 mod context;
 mod fragment;
 mod framebuffer;
+mod frustum;
 mod pipeline;
 mod raster;
+mod sprites;
 mod stats;
 
 pub use background::Background;
@@ -19,6 +21,8 @@ pub use camera::{Camera, CameraRays, OrbitController};
 pub use context::{FrameContext, ObjectContext};
 pub use fragment::Fragment;
 pub use framebuffer::Framebuffer;
+pub use sprites::Sprite;
+use frustum::Frustum;
 pub use stats::RenderStats;
 
 use crate::scene::SceneObject;
@@ -28,6 +32,7 @@ pub fn render_frame(
     framebuffer: &mut Framebuffer,
     background: &Background,
     objects: &[SceneObject],
+    sprites: &[Sprite],
     frame: &FrameContext,
 ) -> RenderStats {
     let mut stats = RenderStats { objects_total: objects.len(), ..RenderStats::default() };
@@ -35,9 +40,22 @@ pub fn render_frame(
     background.paint(framebuffer, frame);
     framebuffer.clear_depth();
 
+    let frustum = Frustum::from_view_projection(&frame.view_projection);
     for object in objects {
+        // Si la esfera envolvente queda fuera de la vista, ningún triángulo del
+        // objeto puede verse: se descarta sin transformar sus vértices.
+        if frame.culling {
+            let (center, radius) = pipeline::world_bounds(object);
+            if !frustum.contains_sphere(center, radius) {
+                stats.objects_culled += 1;
+                continue;
+            }
+        }
         pipeline::draw_object(framebuffer, object, frame, &mut stats);
     }
+
+    // Después de todo lo sólido, para que la profundidad ya esté completa.
+    stats.sprites_drawn = sprites::draw_sprites(framebuffer, sprites, frame);
 
     stats
 }
@@ -99,7 +117,7 @@ mod tests {
             };
 
             let frame = FrameContext::new(&camera, width, height, 0.0, Vector3::new(0.0, 50.0, 0.0), &noise);
-            let stats = render_frame(&mut framebuffer, &background, std::slice::from_ref(&ground), &frame);
+            let stats = render_frame(&mut framebuffer, &background, std::slice::from_ref(&ground), &[], &frame);
             assert!(stats.triangles_clipped > 0, "el paso {step} no ejercita el recorte");
 
             let lower_half = &framebuffer.depths[width * height / 2..];
@@ -122,7 +140,7 @@ mod tests {
             far: 100.0,
         };
         let frame = FrameContext::new(&camera, 64, 64, 0.0, Vector3::zero(), &noise);
-        let stats = render_frame(&mut framebuffer, &Background::new(&noise), std::slice::from_ref(&ground()), &frame);
+        let stats = render_frame(&mut framebuffer, &Background::new(&noise), std::slice::from_ref(&ground()), &[], &frame);
 
         assert_eq!(stats.triangles_behind_camera, 2);
         assert_eq!(stats.fragments_rasterized, 0);
@@ -152,7 +170,7 @@ mod tests {
             };
             let camera = orbit.camera(1.0, 0.1, 100.0);
             let frame = FrameContext::new(&camera, width, height, 0.0, Vector3::new(5.0, 5.0, 5.0), &noise);
-            let stats = render_frame(&mut framebuffer, &background, std::slice::from_ref(&sphere), &frame);
+            let stats = render_frame(&mut framebuffer, &background, std::slice::from_ref(&sphere), &[], &frame);
             assert!(stats.fragments_shaded > 0, "la esfera no se dibujó en el paso {step}");
 
             for row in framebuffer.depths.chunks_exact(width) {

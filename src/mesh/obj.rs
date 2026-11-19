@@ -14,6 +14,7 @@ pub enum Normals {
     Authored,
     /// Promedia las de las caras que comparten una posición. Sirve para
     /// superficies curvas exportadas con normales planas (`sphere.obj`).
+    #[allow(dead_code, reason = "API pública: la escena ya no carga esferas de OBJ, pero sirve para otros modelos")]
     Smooth,
 }
 

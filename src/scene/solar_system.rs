@@ -6,10 +6,11 @@ use std::sync::Arc;
 use raylib::math::Vector3;
 
 use super::planets::{MoonSpec, PLANETS, PlanetSpec, SUN};
-use super::{Collider, SceneObject, fit_to_radius};
-use crate::config::{SHIP_MODEL_PATH, SPHERE_MODEL_PATH};
+use super::{Collider, GRAVITY_PER_RADIUS, SceneObject, fit_to_radius, proximity};
+use crate::config::{RENDER_HEIGHT, SHIP_MODEL_PATH};
+use crate::render::Camera;
 use crate::math::{Mat4, Quat};
-use crate::mesh::{Mesh, Normals, Obj};
+use crate::mesh::{Mesh, Normals, Obj, icosphere};
 use crate::shaders::Material;
 use crate::ship::Ship;
 
@@ -18,8 +19,26 @@ const SHIP_RADIUS: f32 = 1.5;
 /// La nave empieza entre la segunda y la tercera órbita, mirando al sol.
 const SHIP_START: Vector3 = Vector3 { x: 0.0, y: 10.0, z: 122.0 };
 
+/// Niveles de subdivisión de las esferas: de 80 a 20 480 triángulos.
+const MIN_SPHERE_LEVEL: u32 = 1;
+pub const MAX_SPHERE_LEVEL: u32 = 5;
+/// Largo deseado, en píxeles, del lado de un triángulo de una esfera.
+const TARGET_EDGE_PIXELS: f32 = 6.0;
+/// Largo del lado de un icosaedro inscrito en la esfera de radio 1.
+const ICOSAHEDRON_EDGE: f32 = 1.051;
+
+/// Cómo se elige el nivel de detalle de las esferas.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Detail {
+    /// Según el tamaño en pantalla.
+    ByDistance,
+    /// Siempre el máximo. Sirve para comparar cuánto trabajo se ahorra.
+    Max,
+}
+
 pub struct SolarSystem {
-    sphere: Arc<Mesh>,
+    /// Una icosfera por nivel de subdivisión, de 0 a `MAX_SPHERE_LEVEL`.
+    spheres: Vec<Arc<Mesh>>,
     ship: Arc<Mesh>,
 }
 
@@ -35,7 +54,7 @@ fn moon_offset(moon: &MoonSpec, time: f32) -> Vector3 {
 impl SolarSystem {
     pub fn load() -> Result<SolarSystem, String> {
         Ok(SolarSystem {
-            sphere: Arc::new(Obj::load(SPHERE_MODEL_PATH)?.to_mesh(Normals::Smooth)),
+            spheres: (0..=MAX_SPHERE_LEVEL).map(|level| Arc::new(icosphere(level))).collect(),
             ship: Arc::new(Obj::load(SHIP_MODEL_PATH)?.to_mesh(Normals::Authored)),
         })
     }
@@ -63,57 +82,116 @@ impl SolarSystem {
             * Mat4::rotation_y(planet.spin_speed * time)
     }
 
+    /// El planeta al que la nave está más cerca, con su índice en `PLANETS` y su
+    /// `proximity`. `None` si la nave no está cerca de ninguno.
+    pub fn nearest_planet(&self, time: f32, position: Vector3) -> Option<(usize, f32)> {
+        PLANETS
+            .iter()
+            .enumerate()
+            .map(|(index, planet)| {
+                let distance = (position - self.planet_center(planet, time)).length();
+                (index, proximity(distance, planet.radius))
+            })
+            .filter(|(_, near)| *near > 0.0)
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+    }
+
+    /// `proximity` de la nave al sol.
+    pub fn sun_proximity(&self, position: Vector3) -> f32 {
+        proximity((position - self.light_position()).length(), SUN.radius)
+    }
+
+    /// Cuánto se calienta el casco: lo cerca que esté del sol o de un planeta
+    /// volcánico, de 0 a 1.
+    pub fn ship_heat(&self, time: f32, position: Vector3) -> f32 {
+        PLANETS
+            .iter()
+            .filter(|planet| matches!(planet.material, Material::Volcanic))
+            .map(|planet| proximity((position - self.planet_center(planet, time)).length(), planet.radius))
+            .fold(self.sun_proximity(position), f32::max)
+    }
+
     /// Cuerpos sólidos en el instante `time`, con su velocidad.
     pub fn colliders(&self, time: f32) -> Vec<Collider> {
         // Velocidad por diferencia entre dos instantes cercanos.
         const H: f32 = 0.01;
-        let collider = |radius: f32, center: &dyn Fn(f32) -> Vector3| Collider {
+        let collider = |name: &'static str, radius: f32, center: &dyn Fn(f32) -> Vector3| Collider {
+            name,
             center: center(time),
             radius,
             velocity: (center(time) - center(time - H)) * (1.0 / H),
+            surface_gravity: radius * GRAVITY_PER_RADIUS,
         };
 
-        let mut colliders = vec![Collider { center: self.light_position(), radius: SUN.radius, velocity: Vector3::zero() }];
+        let mut colliders = vec![collider("Sol", SUN.radius, &|_| self.light_position())];
         for planet in PLANETS {
-            colliders.push(collider(planet.radius, &|t| self.planet_center(planet, t)));
+            colliders.push(collider(planet.name, planet.radius, &|t| self.planet_center(planet, t)));
             for moon in planet.moons {
-                colliders.push(collider(moon.radius, &|t| self.planet_center(planet, t) + moon_offset(moon, t)));
+                colliders.push(collider(moon.name, moon.radius, &|t| self.planet_center(planet, t) + moon_offset(moon, t)));
             }
         }
         colliders
     }
 
-    /// Los objetos a dibujar en el instante `time`.
-    pub fn objects(&self, time: f32, ship: &Ship) -> Vec<SceneObject> {
-        let sphere = |name: &'static str, model: Mat4, material: Material| SceneObject {
+    /// Nivel de subdivisión para una esfera de `radius` con centro en `center`
+    /// vista desde `camera`. Se elige para que los lados de los triángulos midan
+    /// en pantalla como mucho `TARGET_EDGE_PIXELS`: un planeta lejano que ocupa
+    /// pocos píxeles no necesita miles de triángulos.
+    pub fn sphere_level(&self, center: Vector3, radius: f32, camera: &Camera, detail: Detail) -> u32 {
+        if detail == Detail::Max {
+            return MAX_SPHERE_LEVEL;
+        }
+        let distance = (center - camera.position).length();
+        if distance <= radius {
+            return MAX_SPHERE_LEVEL;
+        }
+
+        // Radio aparente en píxeles, y de ahí cuánto mide un lado del icosaedro.
+        let pixels_per_unit = RENDER_HEIGHT as f32 * 0.5 / (camera.field_of_view * 0.5).tan();
+        let radius_pixels = radius / distance * pixels_per_unit;
+        let edge_pixels = radius_pixels * ICOSAHEDRON_EDGE;
+        // Cada nivel parte los lados a la mitad.
+        let level = (edge_pixels / TARGET_EDGE_PIXELS).log2().ceil();
+        level.clamp(MIN_SPHERE_LEVEL as f32, MAX_SPHERE_LEVEL as f32) as u32
+    }
+
+    /// Matriz de modelo de la nave: lleva puntos del OBJ al mundo. Sirve también
+    /// para saber dónde quedan sus motores.
+    pub fn ship_model(&self, ship: &Ship) -> Mat4 {
+        Mat4::translation(ship.position) * Mat4::rotation(ship.orientation) * fit_to_radius(&self.ship, SHIP_RADIUS)
+    }
+
+    /// Los objetos a dibujar en el instante `time`, vistos desde `camera`.
+    pub fn objects(&self, time: f32, ship: &Ship, camera: &Camera, detail: Detail) -> Vec<SceneObject> {
+        // `frame` coloca y orienta la esfera sin escala. La icosfera tiene radio 1
+        // y está centrada, así que basta con escalarla al radio del cuerpo.
+        let sphere = |name: &'static str, frame: Mat4, radius: f32, material: Material| SceneObject {
             name,
-            mesh: self.sphere.clone(),
-            model,
+            mesh: self.spheres[self.sphere_level(frame.origin(), radius, camera, detail) as usize].clone(),
+            model: frame * Mat4::scale(radius),
             material,
         };
 
-        let mut objects = vec![sphere("Sol", fit_to_radius(&self.sphere, SUN.radius), SUN.material)];
+        let mut objects = vec![sphere("Sol", Mat4::translation(self.light_position()), SUN.radius, SUN.material)];
 
         for planet in PLANETS {
-            let model = self.planet_frame(planet, time) * fit_to_radius(&self.sphere, planet.radius);
-            objects.push(sphere(planet.name, model, planet.material));
+            objects.push(sphere(planet.name, self.planet_frame(planet, time), planet.radius, planet.material));
 
             let center = self.planet_center(planet, time);
             for moon in planet.moons {
                 // Gira lo mismo que avanza en su órbita: siempre muestra la misma cara.
-                let model = Mat4::translation(center + moon_offset(moon, time))
+                let frame = Mat4::translation(center + moon_offset(moon, time))
                     * Mat4::rotation_x(moon.orbit_tilt)
-                    * Mat4::rotation_y(moon.orbit_phase + moon.orbit_speed * time)
-                    * fit_to_radius(&self.sphere, moon.radius);
-                objects.push(sphere(moon.name, model, moon.material));
+                    * Mat4::rotation_y(moon.orbit_phase + moon.orbit_speed * time);
+                objects.push(sphere(moon.name, frame, moon.radius, moon.material));
             }
         }
 
         objects.push(SceneObject {
             name: "Nave",
             mesh: self.ship.clone(),
-            model: Mat4::translation(ship.position) * Mat4::rotation(ship.orientation) * fit_to_radius(&self.ship, SHIP_RADIUS),
-            material: Material::Ship { throttle: ship.throttle },
+            model: self.ship_model(ship),
+            material: Material::Ship { throttle: ship.throttle, heat: self.ship_heat(time, ship.position) },
         });
 
         objects
@@ -181,6 +259,36 @@ mod tests {
         let system = SolarSystem::load().unwrap();
         let bodies = 1 + PLANETS.len() + PLANETS.iter().map(|planet| planet.moons.len()).sum::<usize>();
         assert_eq!(system.colliders(0.0).len(), bodies);
-        assert_eq!(system.objects(0.0, &system.ship_start()).len(), bodies + 1);
+        let camera = camera_at(Vector3::new(0.0, 0.0, 300.0));
+        assert_eq!(system.objects(0.0, &system.ship_start(), &camera, Detail::ByDistance).len(), bodies + 1);
+    }
+
+    fn camera_at(position: Vector3) -> Camera {
+        Camera {
+            position,
+            target: Vector3::zero(),
+            up: Vector3::new(0.0, 1.0, 0.0),
+            field_of_view: 60f32.to_radians(),
+            near: 0.1,
+            far: 1000.0,
+        }
+    }
+
+    #[test]
+    fn farther_spheres_get_fewer_triangles() {
+        let system = SolarSystem::load().unwrap();
+        let level = |distance: f32| system.sphere_level(Vector3::zero(), 6.0, &camera_at(Vector3::new(0.0, 0.0, distance)), Detail::ByDistance);
+
+        assert_eq!(level(7.0), MAX_SPHERE_LEVEL, "de cerca, el máximo");
+        assert_eq!(level(900.0), MIN_SPHERE_LEVEL, "muy lejos, el mínimo");
+        let levels: Vec<u32> = [10.0, 30.0, 80.0, 200.0, 500.0].map(level).to_vec();
+        assert!(levels.windows(2).all(|pair| pair[0] >= pair[1]), "{levels:?}");
+    }
+
+    #[test]
+    fn max_detail_ignores_distance() {
+        let system = SolarSystem::load().unwrap();
+        let far = camera_at(Vector3::new(0.0, 0.0, 900.0));
+        assert_eq!(system.sphere_level(Vector3::zero(), 6.0, &far, Detail::Max), MAX_SPHERE_LEVEL);
     }
 }

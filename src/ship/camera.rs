@@ -91,7 +91,7 @@ mod tests {
         // queda dentro del planeta.
         let nose_up = Quat::from_axis_angle(Vector3::new(1.0, 0.0, 0.0), -std::f32::consts::FRAC_PI_2);
         let ship = Ship::new(Vector3::new(0.0, 11.5, 0.0), nose_up);
-        let planet = Collider { center: Vector3::zero(), radius: 10.0, velocity: Vector3::zero() };
+        let planet = Collider { name: "prueba", center: Vector3::zero(), radius: 10.0, velocity: Vector3::zero(), surface_gravity: 0.0 };
         assert!((desired_position(&ship) - planet.center).length() < planet.radius);
         let mut camera = ChaseCamera::behind(&ship);
         for _ in 0..120 {

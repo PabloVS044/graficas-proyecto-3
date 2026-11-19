@@ -4,6 +4,8 @@
 pub struct RenderStats {
     pub objects_total: usize,
     pub objects_drawn: usize,
+    /// Descartados enteros por quedar fuera de la vista.
+    pub objects_culled: usize,
     /// Triángulos que entraron al pipeline.
     pub triangles_submitted: usize,
     /// Descartados por quedar completos detrás del plano cercano.
@@ -20,13 +22,18 @@ pub struct RenderStats {
     pub fragments_rasterized: usize,
     /// Fragmentos que pasaron la prueba de profundidad y se sombrearon.
     pub fragments_shaded: usize,
+    /// Partículas que llegaron a pintar algún píxel.
+    pub sprites_drawn: usize,
 }
 
 impl RenderStats {
     /// Texto para el HUD, una línea por renglón.
     pub fn lines(&self) -> [String; 3] {
         [
-            format!("objetos: {}/{}", self.objects_drawn, self.objects_total),
+            format!(
+                "objetos: {}/{} dibujados ({} fuera de vista)",
+                self.objects_drawn, self.objects_total, self.objects_culled
+            ),
             format!(
                 "triangulos: {} enviados, {} rasterizados ({} espalda/sin area, {} detras, {} recortados)",
                 self.triangles_submitted,
@@ -36,8 +43,8 @@ impl RenderStats {
                 self.triangles_clipped,
             ),
             format!(
-                "fragmentos: {} rasterizados, {} sombreados",
-                self.fragments_rasterized, self.fragments_shaded
+                "fragmentos: {} rasterizados, {} sombreados; particulas: {}",
+                self.fragments_rasterized, self.fragments_shaded, self.sprites_drawn
             ),
         ]
     }

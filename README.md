@@ -9,8 +9,25 @@ rasterización, la prueba de profundidad y los shaders están escritos en este
 repositorio.
 
 **Estado:** renderer, vuelo de la nave en tercera persona y sistema solar con cinco
-planetas y una luna. El primer planeta (Jungla) tiene su shader; los demás son de color
-liso por ahora.
+planetas y una luna. El sol y cada planeta tienen su propio shader, y todos reaccionan
+cuando la nave se acerca.
+
+## Planetas
+
+Cada cuerpo recibe en `ObjectContext` qué tan cerca está la nave (`proximity`, de 0 a
+1) y la dirección hacia ella en su propio espacio (`ship_direction`), que en la esfera
+es el punto justo debajo de la nave. Con eso los shaders cambian al acercarse, sin
+cambiar de escena. Al acercarse, el HUD muestra el nombre del planeta y lleva la cuenta
+de los descubiertos.
+
+| Cuerpo | Shader | Qué pasa al acercarse |
+|---|---|---|
+| Sol | `shaders/sun.rs`: plasma que hierve, granulación (Worley), manchas, filamentos | Hierve más rápido, se encienden los filamentos y brilla más; el casco se calienta |
+| Jungla | `shaders/jungle.rs`: mar, selva, ríos, nubes con sombra, luces de noche | Se abre un claro en las nubes bajo la nave y se avivan las luciérnagas |
+| Ambar | `shaders/gas_giant.rs`: bandas con corrientes, tormenta en espiral, relámpagos | La tormenta gira más rápido y hay más relámpagos |
+| Kryos | `shaders/ice.rs`: hielo agrietado (Worley), reflejo, auroras polares | Las grietas se encienden en ondas cian desde la nave; las auroras se intensifican |
+| Ignis | `shaders/volcanic.rs`: placas de basalto, lava que fluye, volcanes | Las grietas se abren, salen ondas de calor y erupciona más; el casco se pone al rojo |
+| Eco | `shaders/dormant.rs`: roca con red hexagonal tallada | La red se enciende hexágono por hexágono desde la nave, con pulsos y glifos |
 
 ## Cómo se ejecuta
 
@@ -26,6 +43,16 @@ cargo test --release                         # pruebas
 ```
 
 Se ejecuta desde la raíz del repositorio: los modelos se cargan de `assets/`.
+`--screenshot` guarda también cada planeta con la nave cerca (`<prefijo>-<planeta>-cerca.png`).
+
+**Windows:** si la compilación falla con `'vcruntime.h' file not found`, `bindgen` no
+encuentra los headers de MSVC (pasa cuando hay una instalación de Visual Studio sin las
+herramientas de C++). Se le indica la carpeta con una variable de entorno, ajustando la
+versión a la que esté instalada:
+
+```powershell
+$env:BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.43.34808/include"'
+```
 
 ### Controles
 
@@ -40,10 +67,30 @@ Se ejecuta desde la raíz del repositorio: los modelos se cargan de `assets/`.
 | `C` | Inspeccionar: orbitar alrededor de la nave con flechas y rueda; otra vez `C` para volver |
 | `R` | Volver la nave al inicio |
 | Espacio | Pausar la simulación |
+| `L` | Niveles de detalle: por distancia o siempre el máximo |
+| `F` | Descarte de objetos fuera de la vista: activo o apagado |
+| `O` | Cerca de un planeta: entrar o salir del modo orbital |
+| `G` | Gravedad: activa o apagada |
 
 La aceleración y los giros son progresivos. La física avanza en pasos fijos de 1/120 s,
 así que la nave responde igual sin importar cuántos cuadros por segundo dibuje el equipo.
-No se puede atravesar el sol ni el planeta.
+No se puede atravesar el sol ni los planetas.
+
+### Gravedad y modo orbital
+
+- **Gravedad** (`ship::gravity_at`): cada cuerpo jala a la nave hacia su centro. En la
+  superficie la aceleración es proporcional al radio (un planeta grande jala más) y cae
+  con el cuadrado de la distancia. Si la nave pasa cerca sin motor, su trayectoria se
+  curva. El HUD muestra la aceleración y qué cuerpo jala más.
+- **Modo orbital** (`Ship::step_orbit`): cerca de un planeta, `O` cambia el control para
+  rodearlo sin cortar el vuelo. La nave viaja con el planeta, se nivela sola con el techo
+  hacia afuera y avanza a la misma altura curvándose con la superficie. W/S cambian la
+  velocidad, izquierda y derecha el rumbo, y arriba y abajo la altura. Si sube demasiado
+  vuelve sola al vuelo libre.
+- **Partículas del turbo** (`ship/exhaust.rs`, `render/sprites.rs`): con `Shift` cada
+  motor suelta chispas que se enfrían de blanco a rojo y quedan como estela. Avanzan en
+  los pasos fijos de la física con una semilla fija, y el renderer las dibuja después de
+  los objetos como discos de luz: prueban la profundidad sin escribirla y suman su color.
 
 ## Estructura
 
@@ -52,7 +99,7 @@ src/
   main.rs            ventana, bucle, --benchmark y --screenshot
   config.rs          resolución, campo de visión, planos, semilla, rutas
   math/              Mat4 y Quat propios
-  mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ
+  mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ, icosfera
   render/            cámara, contexto del cuadro, pipeline, rasterizador,
                      framebuffer, fondo, contadores
   scene/             SceneObject, Collider y el sistema solar
@@ -62,7 +109,7 @@ src/
   shaders/           Material, shaders y funciones de ruido
 assets/
   nave_graficas.obj  la nave (Blender, 39 168 triángulos)
-  sphere.obj         esfera provisional, la reemplaza la icosfera generada
+  sphere.obj         esfera para las pruebas del cargador OBJ; la escena usa la icosfera
 ```
 
 ## Convenciones
@@ -122,3 +169,26 @@ Ryzen 7 8845HS, 800×450, `--benchmark` (varía según el estado del equipo):
 | Inicio | 5.0 |
 | Junto a la superficie de Jungla | 22.5 |
 | Junto al sol | 8.5 |
+
+## Esferas, niveles de detalle y descarte
+
+- **Icosfera** (`src/mesh/icosphere.rs`): el sol, los planetas y la luna son esferas
+  generadas antes de rasterizar. Se parte de un icosaedro y cada nivel parte cada
+  triángulo en cuatro, empujando los puntos medios a la superficie: 20, 80, 320, 1 280,
+  5 120 y 20 480 triángulos.
+- **Niveles de detalle** (`SolarSystem::sphere_level`): cada cuadro, cada esfera usa el
+  nivel con el que sus triángulos miden unos 6 píxeles en pantalla. Un planeta lejano
+  usa 80 triángulos; uno que llena la pantalla, 20 480.
+- **Descarte** (`src/render/frustum.rs`): antes de transformar los vértices de un
+  objeto, se prueba su esfera envolvente contra los seis planos de la vista. Si queda
+  fuera, el objeto se salta entero.
+
+El HUD muestra los contadores de objetos y triángulos, y `L` y `F` apagan cada
+optimización para compararlas en vivo. `--benchmark` mide cada pose con y sin ellas.
+Triángulos enviados al pipeline:
+
+| Pose de la nave | Con niveles de detalle y descarte | Sin optimizar |
+|---|---:|---:|
+| Inicio | 41 248 (6 de 8 objetos) | 182 528 |
+| Junto a la superficie de Jungla | 66 208 | 182 528 |
+| Junto al sol | 62 368 | 182 528 |

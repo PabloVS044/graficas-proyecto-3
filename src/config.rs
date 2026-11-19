@@ -20,4 +20,6 @@ pub const FAR_PLANE: f32 = 1000.0;
 pub const NOISE_SEED: u32 = 7;
 
 pub const SHIP_MODEL_PATH: &str = "assets/nave_graficas.obj";
+/// Esfera para las pruebas del cargador OBJ. La escena usa la icosfera.
+#[cfg(test)]
 pub const SPHERE_MODEL_PATH: &str = "assets/sphere.obj";

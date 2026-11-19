@@ -12,6 +12,13 @@ pub struct ObjectContext {
     /// y no cambia aunque el planeta gire: es la que necesitan los patrones que
     /// se calculan con `fragment.object_position`.
     pub sun_direction: Vector3,
+    /// Qué tan cerca está la nave: 0 lejos, 1 pegada a la superficie. Ver
+    /// `scene::proximity`.
+    pub proximity: f32,
+    /// Dirección del centro del objeto hacia la nave, en el espacio del objeto
+    /// y con largo 1. En una esfera es el punto de la superficie que queda
+    /// justo debajo de la nave: de ahí salen los efectos que reaccionan a ella.
+    pub ship_direction: Vector3,
 }
 
 /// Lo que es igual para todos los objetos de un cuadro. Lo que cambia por
@@ -33,6 +40,12 @@ pub struct FrameContext {
     pub time: f32,
     /// El sol es una luz puntual: cada fragmento calcula su propia dirección.
     pub light_position: Vector3,
+    /// Dónde está la nave. Los planetas reaccionan cuando se acerca. Mientras
+    /// no se indique con `with_ship`, es la posición de la cámara.
+    pub ship_position: Vector3,
+    /// Si se descartan los objetos que quedan fuera de la vista. Se apaga para
+    /// comparar cuánto trabajo ahorra.
+    pub culling: bool,
     pub noise: OpenSimplex,
 }
 
@@ -59,7 +72,19 @@ impl FrameContext {
             height,
             time,
             light_position,
+            ship_position: camera.position,
+            culling: true,
             noise: *noise,
         }
+    }
+
+    pub fn with_culling(mut self, culling: bool) -> Self {
+        self.culling = culling;
+        self
+    }
+
+    pub fn with_ship(mut self, ship_position: Vector3) -> Self {
+        self.ship_position = ship_position;
+        self
     }
 }

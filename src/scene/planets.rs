@@ -17,6 +17,9 @@ pub struct SunSpec {
 
 pub struct PlanetSpec {
     pub name: &'static str,
+    /// Frase que aparece en pantalla al acercarse. Sin acentos: la fuente del
+    /// HUD no los tiene.
+    pub description: &'static str,
     pub radius: f32,
     /// Distancia al sol.
     pub orbit_radius: f32,
@@ -46,12 +49,13 @@ pub struct MoonSpec {
     pub material: Material,
 }
 
-pub const SUN: SunSpec = SunSpec { radius: 12.0, material: Material::Emissive { color: color(1.0, 0.75, 0.3) } };
+pub const SUN: SunSpec = SunSpec { radius: 12.0, material: Material::Sun };
 
 /// Ordenados del más cercano al sol al más lejano.
 pub const PLANETS: &[PlanetSpec] = &[
     PlanetSpec {
         name: "Jungla",
+        description: "Selva viva bajo las nubes. Las nubes se abren al pasar.",
         radius: 6.0,
         orbit_radius: 60.0,
         orbit_speed: 0.05,
@@ -63,7 +67,8 @@ pub const PLANETS: &[PlanetSpec] = &[
         moons: &[],
     },
     PlanetSpec {
-        name: "Planeta 2",
+        name: "Ambar",
+        description: "Gigante gaseoso. Su tormenta despierta con visitas.",
         radius: 9.0,
         orbit_radius: 100.0,
         orbit_speed: 0.035,
@@ -71,9 +76,9 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: -0.03,
         spin_speed: 0.2,
         axial_tilt: 0.1,
-        material: Material::Lambert { albedo: color(0.85, 0.72, 0.25) },
+        material: Material::GasGiant,
         moons: &[MoonSpec {
-            name: "Luna del planeta 2",
+            name: "Luna de Ambar",
             radius: 1.6,
             orbit_radius: 17.0,
             orbit_speed: 0.4,
@@ -83,7 +88,8 @@ pub const PLANETS: &[PlanetSpec] = &[
         }],
     },
     PlanetSpec {
-        name: "Planeta 3",
+        name: "Kryos",
+        description: "Oceano congelado. Algo brilla bajo el hielo.",
         radius: 5.0,
         orbit_radius: 145.0,
         orbit_speed: 0.025,
@@ -91,11 +97,12 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: 0.04,
         spin_speed: 0.35,
         axial_tilt: 0.5,
-        material: Material::Lambert { albedo: color(0.3, 0.5, 0.88) },
+        material: Material::Ice,
         moons: &[],
     },
     PlanetSpec {
-        name: "Planeta 4",
+        name: "Ignis",
+        description: "Mundo volcanico. El casco se calienta.",
         radius: 7.0,
         orbit_radius: 190.0,
         orbit_speed: 0.02,
@@ -103,11 +110,12 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: -0.02,
         spin_speed: 0.25,
         axial_tilt: 0.2,
-        material: Material::Lambert { albedo: color(0.78, 0.26, 0.2) },
+        material: Material::Volcanic,
         moons: &[],
     },
     PlanetSpec {
-        name: "Planeta 5",
+        name: "Eco",
+        description: "Planeta dormido. Parece reconocer a la nave.",
         radius: 4.5,
         orbit_radius: 240.0,
         orbit_speed: 0.015,
@@ -115,7 +123,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: 0.05,
         spin_speed: 0.4,
         axial_tilt: 0.15,
-        material: Material::Lambert { albedo: color(0.58, 0.42, 0.72) },
+        material: Material::Dormant,
         moons: &[],
     },
 ];

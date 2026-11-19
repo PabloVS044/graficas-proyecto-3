@@ -33,9 +33,14 @@ const RIM_STRENGTH: f32 = 0.45;
 const SHININESS: f32 = 40.0;
 /// Brillo de los motores con el acelerador a fondo.
 const ENGINE_BRIGHTNESS: f32 = 1.5;
+/// Desde qué calor empieza a brillar el casco: por debajo no se nota.
+const HEAT_START: f32 = 0.25;
+/// Brillo del casco al rojo vivo.
+const HEAT_BRIGHTNESS: f32 = 1.4;
 
-/// `throttle` va de 0 (motores en reposo) a 1 (turbo).
-pub fn shade(fragment: &Fragment, frame: &FrameContext, throttle: f32) -> Vector3 {
+/// `throttle` va de 0 (motores en reposo) a 1 (turbo); `heat`, de 0 (casco
+/// frío) a 1 (al rojo vivo).
+pub fn shade(fragment: &Fragment, frame: &FrameContext, throttle: f32, heat: f32) -> Vector3 {
     let albedo = paint(fragment.object_position, frame);
 
     // Luz: difusa del sol, un poco de ambiente, reflejo y borde.
@@ -49,7 +54,22 @@ pub fn shade(fragment: &Fragment, frame: &FrameContext, throttle: f32) -> Vector
 
     let lit = albedo * (AMBIENT + diffuse * (1.0 - AMBIENT)) + Vector3::one() * (specular * 0.35) + RIM * (rim * RIM_STRENGTH);
 
-    lit + engine_glow(fragment, frame, throttle)
+    lit + engine_glow(fragment, frame, throttle) + hull_heat(fragment, frame, heat, rim)
+}
+
+/// Brillo del casco caliente. Empieza por la silueta, donde el metal es más
+/// delgado visto desde la cámara, y con más calor cubre toda la nave. El ruido
+/// que sube con el tiempo imita el aire caliente que tiembla.
+fn hull_heat(fragment: &Fragment, frame: &FrameContext, heat: f32, rim: f32) -> Vector3 {
+    let amount = smoothstep(HEAT_START, 1.0, heat);
+    if amount <= 0.0 {
+        return Vector3::zero();
+    }
+
+    let p = fragment.object_position;
+    let shimmer = 0.75 + 0.25 * sample(&frame.noise, Vector3::new(p.x * 1.3, p.y * 1.3 - frame.time * 4.0, p.z * 1.3));
+    let cover = rim * 0.9 + amount * 0.35;
+    mix(color(0.55, 0.04, 0.0), color(1.0, 0.45, 0.1), amount) * (amount * cover * shimmer * HEAT_BRIGHTNESS)
 }
 
 /// Color de la superficie, antes de iluminar.
