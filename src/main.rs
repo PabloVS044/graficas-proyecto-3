@@ -148,6 +148,9 @@ fn run_window(world: &World) {
                 if window.is_key_pressed(KeyboardKey::KEY_R) {
                     simulation.reset_ship(&world.scene);
                 }
+                if window.is_key_pressed(KeyboardKey::KEY_O) {
+                    simulation.toggle_orbit(&world.scene);
+                }
                 ship::read_input(&window, pitch_control)
             }
             View::Inspect => {
@@ -248,12 +251,21 @@ fn draw_hud(
         "gravedad: apagada (G cambia)".to_string()
     };
     drawing.draw_text(&gravity, 10, 230, SIZE, Color::SKYBLUE);
+
+    let mode = match (simulation.orbit, simulation.orbit_candidate(scene)) {
+        (Some((_, name)), _) => format!("modo: orbitando {name} (O vuelve al vuelo libre)"),
+        (None, Some((_, name))) => format!("modo: vuelo libre (O para orbitar {name})"),
+        (None, None) => "modo: vuelo libre (acercate a un planeta para orbitarlo)".to_string(),
+    };
+    let mode_color = if simulation.orbit.is_some() { Color::GOLD } else { Color::SKYBLUE };
+    drawing.draw_text(&mode, 10, 254, SIZE, mode_color);
     if simulation.paused {
-        drawing.draw_text("PAUSA", 10, 278, SIZE, Color::YELLOW);
+        drawing.draw_text("PAUSA", 10, 302, SIZE, Color::YELLOW);
     }
 
     let controls = match view {
-        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   G: gravedad   C: inspeccionar   R: reiniciar   Espacio: pausa",
+        View::Chase if simulation.orbit.is_some() => "W/S: acelerar/frenar   Izq/Der: rumbo   Arriba/Abajo: altura (I invierte)   Shift: turbo   O: vuelo libre   C: inspeccionar   Espacio: pausa",
+        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   C: inspeccionar   R: reiniciar   Espacio: pausa",
         View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   Espacio: pausa",
     };
     drawing.draw_text(controls, 10, window_height - 30, SIZE, Color::LIGHTGRAY);

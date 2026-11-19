@@ -6,7 +6,7 @@
 //! duración fija: en una computadora lenta se dan varios pasos por cuadro, y
 //! en una rápida a veces ninguno, pero el resultado es el mismo.
 
-use crate::scene::SolarSystem;
+use crate::scene::{SolarSystem, proximity};
 use crate::scene::planets::PLANETS;
 use crate::ship::{ChaseCamera, Ship, ShipInput};
 
@@ -26,11 +26,18 @@ pub struct Simulation {
     pub discovered: Vec<bool>,
     /// Si los cuerpos atraen a la nave.
     pub gravity: bool,
+    /// Cuerpo que la nave está orbitando en modo orbital: su índice en
+    /// `SolarSystem::colliders` y su nombre. `None` es vuelo libre.
+    pub orbit: Option<(usize, &'static str)>,
     accumulator: f32,
 }
 
 /// Qué tan cerca hay que llegar a un planeta para contarlo como descubierto.
 const DISCOVERY_PROXIMITY: f32 = 0.6;
+/// Qué tan cerca hay que estar de un cuerpo para entrar en modo orbital.
+const ORBIT_ENGAGE_PROXIMITY: f32 = 0.3;
+/// Si en modo orbital la nave sube hasta quedar así de lejos, vuelve al vuelo libre.
+const ORBIT_RELEASE_PROXIMITY: f32 = 0.02;
 
 impl Simulation {
     pub fn new(scene: &SolarSystem) -> Simulation {
@@ -42,6 +49,7 @@ impl Simulation {
             paused: false,
             discovered: vec![false; PLANETS.len()],
             gravity: true,
+            orbit: None,
             accumulator: 0.0,
         }
     }
@@ -50,6 +58,25 @@ impl Simulation {
     pub fn reset_ship(&mut self, scene: &SolarSystem) {
         self.ship = scene.ship_start();
         self.camera = ChaseCamera::behind(&self.ship);
+        self.orbit = None;
+    }
+
+    /// El cuerpo más cercano que se puede orbitar desde donde está la nave.
+    pub fn orbit_candidate(&self, scene: &SolarSystem) -> Option<(usize, &'static str)> {
+        scene
+            .colliders(self.time)
+            .iter()
+            .enumerate()
+            .map(|(index, body)| (index, body.name, proximity((self.ship.position - body.center).length(), body.radius)))
+            .filter(|(_, _, near)| *near >= ORBIT_ENGAGE_PROXIMITY)
+            .max_by(|a, b| a.2.total_cmp(&b.2))
+            .map(|(index, name, _)| (index, name))
+    }
+
+    /// Entra en modo orbital alrededor del cuerpo más cercano, o vuelve al vuelo
+    /// libre. Lejos de todo no hace nada.
+    pub fn toggle_orbit(&mut self, scene: &SolarSystem) {
+        self.orbit = if self.orbit.is_some() { None } else { self.orbit_candidate(scene) };
     }
 
     /// Consume `frame_time` segundos reales en pasos fijos.
@@ -62,10 +89,23 @@ impl Simulation {
         while self.accumulator >= STEP {
             self.time += STEP;
             let colliders = scene.colliders(self.time);
-            if self.gravity {
-                self.ship.apply_gravity(&colliders, STEP);
+            match self.orbit {
+                Some((index, _)) => {
+                    // En modo orbital no hay gravedad: la altura la decide quien juega.
+                    let body = colliders[index];
+                    self.ship.step_orbit(input, &body, &colliders, STEP);
+                    let distance = (self.ship.position - body.center).length();
+                    if proximity(distance, body.radius) < ORBIT_RELEASE_PROXIMITY {
+                        self.orbit = None;
+                    }
+                }
+                None => {
+                    if self.gravity {
+                        self.ship.apply_gravity(&colliders, STEP);
+                    }
+                    self.ship.step(input, &colliders, STEP);
+                }
             }
-            self.ship.step(input, &colliders, STEP);
             self.camera.step(&self.ship, &colliders, STEP);
             self.accumulator -= STEP;
         }
@@ -111,6 +151,57 @@ mod tests {
         assert!((slow.time - fast.time).abs() < 1e-4);
         assert!((slow.ship.position - fast.ship.position).length() < 1e-2);
         assert!((slow.ship.forward() - fast.ship.forward()).length() < 1e-3);
+    }
+
+    /// Pone la nave a `altitude` sobre el primer planeta.
+    fn near_first_planet(scene: &SolarSystem, altitude: f32) -> Simulation {
+        let mut simulation = Simulation::new(scene);
+        let planet = &PLANETS[0];
+        let center = scene.planet_center(planet, 0.0);
+        simulation.ship.position = center + crate::ship::Ship::new(center, simulation.ship.orientation).up() * (planet.radius + altitude);
+        simulation
+    }
+
+    #[test]
+    fn orbit_mode_needs_a_body_nearby() {
+        let scene = SolarSystem::load().unwrap();
+        let mut far = Simulation::new(&scene);
+        far.toggle_orbit(&scene);
+        assert_eq!(far.orbit, None, "desde el inicio no hay nada cerca");
+
+        let mut near = near_first_planet(&scene, 3.0);
+        near.toggle_orbit(&scene);
+        assert_eq!(near.orbit.map(|(_, name)| name), Some(PLANETS[0].name));
+        near.toggle_orbit(&scene);
+        assert_eq!(near.orbit, None, "otra vez sale del modo");
+    }
+
+    #[test]
+    fn orbit_mode_keeps_the_ship_near_the_moving_planet() {
+        let scene = SolarSystem::load().unwrap();
+        let mut simulation = near_first_planet(&scene, 3.0);
+        simulation.toggle_orbit(&scene);
+
+        let cruise = ShipInput { thrust: 1.0, yaw: 0.3, ..ShipInput::default() };
+        for _ in 0..10 * 60 {
+            simulation.advance(&scene, &cruise, 1.0 / 60.0);
+        }
+
+        let planet = &PLANETS[0];
+        let altitude = (simulation.ship.position - scene.planet_center(planet, simulation.time)).length() - planet.radius;
+        assert!(simulation.orbit.is_some());
+        assert!((altitude - 3.0).abs() < 0.5, "altura {altitude} tras 10 s");
+    }
+
+    #[test]
+    fn climbing_far_away_leaves_orbit_mode() {
+        let scene = SolarSystem::load().unwrap();
+        let mut simulation = near_first_planet(&scene, 3.0);
+        simulation.toggle_orbit(&scene);
+        for _ in 0..15 * 60 {
+            simulation.advance(&scene, &ShipInput { pitch: 1.0, ..ShipInput::default() }, 1.0 / 60.0);
+        }
+        assert_eq!(simulation.orbit, None);
     }
 
     #[test]
