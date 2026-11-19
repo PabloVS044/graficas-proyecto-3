@@ -6,6 +6,7 @@
 //! en el `match` de abajo.
 
 mod basic;
+mod dormant;
 mod gas_giant;
 mod ice;
 mod jungle;
@@ -36,6 +37,9 @@ pub enum Material {
     /// Hielo con grietas y auroras. La nave cerca enciende la bioluminiscencia
     /// de las grietas en ondas que salen de debajo de ella.
     Ice,
+    /// Roca con una red hexagonal tallada que se enciende, hexágono por
+    /// hexágono, desde el punto bajo la nave.
+    Dormant,
     /// Casco desgastado con franjas rojas y motores encendidos.
     /// `throttle` va de 0 (reposo) a 1 (turbo); `heat`, de 0 (frío) a 1
     /// (al rojo vivo, junto al sol o a un planeta volcánico).
@@ -54,6 +58,7 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, obj
         Material::Volcanic => volcanic::shade(fragment, frame, object),
         Material::GasGiant => gas_giant::shade(fragment, frame, object),
         Material::Ice => ice::shade(fragment, frame, object),
+        Material::Dormant => dormant::shade(fragment, frame, object),
         Material::Normals => basic::normals(fragment),
     }
 }

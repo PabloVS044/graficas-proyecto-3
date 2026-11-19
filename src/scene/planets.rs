@@ -123,7 +123,7 @@ pub const PLANETS: &[PlanetSpec] = &[
         orbit_tilt: 0.05,
         spin_speed: 0.4,
         axial_tilt: 0.15,
-        material: Material::Lambert { albedo: color(0.58, 0.42, 0.72) },
+        material: Material::Dormant,
         moons: &[],
     },
 ];
