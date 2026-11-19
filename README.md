@@ -69,10 +69,24 @@ $env:BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files (x86)/Microsoft Visual Stud
 | Espacio | Pausar la simulación |
 | `L` | Niveles de detalle: por distancia o siempre el máximo |
 | `F` | Descarte de objetos fuera de la vista: activo o apagado |
+| `O` | Cerca de un planeta: entrar o salir del modo orbital |
+| `G` | Gravedad: activa o apagada |
 
 La aceleración y los giros son progresivos. La física avanza en pasos fijos de 1/120 s,
 así que la nave responde igual sin importar cuántos cuadros por segundo dibuje el equipo.
-No se puede atravesar el sol ni el planeta.
+No se puede atravesar el sol ni los planetas.
+
+### Gravedad y modo orbital
+
+- **Gravedad** (`ship::gravity_at`): cada cuerpo jala a la nave hacia su centro. En la
+  superficie la aceleración es proporcional al radio (un planeta grande jala más) y cae
+  con el cuadrado de la distancia. Si la nave pasa cerca sin motor, su trayectoria se
+  curva. El HUD muestra la aceleración y qué cuerpo jala más.
+- **Modo orbital** (`Ship::step_orbit`): cerca de un planeta, `O` cambia el control para
+  rodearlo sin cortar el vuelo. La nave viaja con el planeta, se nivela sola con el techo
+  hacia afuera y avanza a la misma altura curvándose con la superficie. W/S cambian la
+  velocidad, izquierda y derecha el rumbo, y arriba y abajo la altura. Si sube demasiado
+  vuelve sola al vuelo libre.
 
 ## Estructura
 
