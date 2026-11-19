@@ -12,7 +12,7 @@ use noise::OpenSimplex;
 use raylib::math::Vector3;
 
 use super::noise_helpers::{cell_random, fbm, sample};
-use super::{color, light_direction, mix, smoothstep};
+use super::{color, light_direction, mix, smoothstep, surface_distance};
 use crate::render::{Fragment, FrameContext, ObjectContext};
 
 /// Tamaño de los continentes: más alto da más masas de tierra y más pequeñas.
@@ -70,6 +70,23 @@ const CAMPFIRE_BRIGHTNESS: f32 = 1.7;
 const CLOUD_LIGHT_BLOCK: f32 = 0.8;
 /// Cuánto oscurece la sombra: 0 no se ve, 1 deja el suelo negro.
 const SHADOW_STRENGTH: f32 = 0.72;
+/// Radio del claro que se abre en las nubes bajo la nave cuando está pegada a
+/// la superficie, en radianes. Crece con la cercanía.
+const CLEARING_RADIUS: f32 = 0.85;
+/// Cuánto más brillan las luces de la noche justo debajo de la nave.
+const LIGHTS_EXCITEMENT: f32 = 1.8;
+/// Hasta dónde se avivan las luces alrededor de la nave, en radianes.
+const LIGHTS_REACH: f32 = 0.7;
+
+/// Cuánto de las nubes queda en `p`: 1 lejos de la nave, 0 en el centro del
+/// claro que se abre debajo de ella.
+fn clearing(p: Vector3, ship_direction: Vector3, proximity: f32) -> f32 {
+    let radius = CLEARING_RADIUS * proximity;
+    if radius <= 0.0 {
+        return 1.0;
+    }
+    smoothstep(radius * 0.45, radius, surface_distance(p, ship_direction))
+}
 
 /// Densidad de nubes en un punto de la esfera, de 0 (cielo) a 1 (nube).
 ///
@@ -229,13 +246,17 @@ pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) 
     // Se sale hacia el sol en el espacio del planeta y se recalcula el ruido de
     // las nubes en ese otro punto, por lo que la sombra se mueve con la nube y
     // cambia con la dirección de la luz.
+    // La nave abre un claro en las nubes; la sombra se mide en la nube que tapa
+    // al sol, así que el claro también deja pasar la luz.
+    let ship = object.ship_direction;
+    let near = object.proximity;
     let above = point_towards_light(p, sun);
-    let shadow = cloud_density(noise, above, time, CLOUD_COVERAGE);
+    let shadow = cloud_density(noise, above, time, CLOUD_COVERAGE) * clearing(above, ship, near);
     let sunlight = 1.0 - shadow * SHADOW_STRENGTH;
     let surface = surface * sunlight;
 
     // Las nubes reciben la misma luz que la superficie que tapan.
-    let cloud = cloud_density(noise, p, time, CLOUD_COVERAGE) * CLOUD_OPACITY;
+    let cloud = cloud_density(noise, p, time, CLOUD_COVERAGE) * CLOUD_OPACITY * clearing(p, ship, near);
     let lit = mix(surface, color(0.66, 0.70, 0.68), cloud);
 
     // El reflejo solo aparece en el agua. Las nubes lo tapan y su sombra lo apaga.
@@ -256,7 +277,10 @@ pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) 
     let jungle_only = land * (1.0 - highland) * (1.0 - river * lowland);
     let night_lights = if night > 0.0 && jungle_only > 0.0 {
         let lights = fireflies(noise, p, time) + settlements(noise, p, time);
-        lights * night * jungle_only * (1.0 - cloud * CLOUD_LIGHT_BLOCK)
+        // Debajo de la nave las luciérnagas y las fogatas se avivan.
+        let below_ship = 1.0 - smoothstep(0.0, LIGHTS_REACH, surface_distance(p, ship));
+        let excitement = 1.0 + below_ship * near * LIGHTS_EXCITEMENT;
+        lights * night * jungle_only * (1.0 - cloud * CLOUD_LIGHT_BLOCK) * excitement
     } else {
         Vector3::zero()
     };
@@ -350,6 +374,14 @@ mod tests {
         };
         assert!(brightest(0.3, 1.0) > 0.9);
         assert!(brightest(4.1, 1.0) > 0.9);
+    }
+
+    #[test]
+    fn ship_opens_a_clearing_in_the_clouds() {
+        let ship = color(0.0, 0.0, 1.0);
+        assert_eq!(clearing(ship, ship, 0.0), 1.0, "con la nave lejos no hay claro");
+        assert_eq!(clearing(ship, ship, 1.0), 0.0, "bajo la nave no quedan nubes");
+        assert_eq!(clearing(color(1.0, 0.0, 0.0), ship, 1.0), 1.0, "lejos del claro siguen las nubes");
     }
 
     #[test]
