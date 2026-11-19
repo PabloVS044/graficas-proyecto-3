@@ -87,6 +87,10 @@ No se puede atravesar el sol ni los planetas.
   hacia afuera y avanza a la misma altura curvándose con la superficie. W/S cambian la
   velocidad, izquierda y derecha el rumbo, y arriba y abajo la altura. Si sube demasiado
   vuelve sola al vuelo libre.
+- **Partículas del turbo** (`ship/exhaust.rs`, `render/sprites.rs`): con `Shift` cada
+  motor suelta chispas que se enfrían de blanco a rojo y quedan como estela. Avanzan en
+  los pasos fijos de la física con una semilla fija, y el renderer las dibuja después de
+  los objetos como discos de luz: prueban la profundidad sin escribirla y suman su color.
 
 ## Estructura
 

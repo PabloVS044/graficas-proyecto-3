@@ -22,6 +22,8 @@ pub struct RenderStats {
     pub fragments_rasterized: usize,
     /// Fragmentos que pasaron la prueba de profundidad y se sombrearon.
     pub fragments_shaded: usize,
+    /// Partículas que llegaron a pintar algún píxel.
+    pub sprites_drawn: usize,
 }
 
 impl RenderStats {
@@ -41,8 +43,8 @@ impl RenderStats {
                 self.triangles_clipped,
             ),
             format!(
-                "fragmentos: {} rasterizados, {} sombreados",
-                self.fragments_rasterized, self.fragments_shaded
+                "fragmentos: {} rasterizados, {} sombreados; particulas: {}",
+                self.fragments_rasterized, self.fragments_shaded, self.sprites_drawn
             ),
         ]
     }

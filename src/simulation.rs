@@ -8,7 +8,7 @@
 
 use crate::scene::{SolarSystem, proximity};
 use crate::scene::planets::PLANETS;
-use crate::ship::{ChaseCamera, Ship, ShipInput};
+use crate::ship::{ChaseCamera, Exhaust, Ship, ShipInput};
 
 /// Duración de un paso de física, en segundos.
 pub const STEP: f32 = 1.0 / 120.0;
@@ -29,6 +29,8 @@ pub struct Simulation {
     /// Cuerpo que la nave está orbitando en modo orbital: su índice en
     /// `SolarSystem::colliders` y su nombre. `None` es vuelo libre.
     pub orbit: Option<(usize, &'static str)>,
+    /// Partículas que suelta el turbo.
+    pub exhaust: Exhaust,
     accumulator: f32,
 }
 
@@ -50,6 +52,7 @@ impl Simulation {
             discovered: vec![false; PLANETS.len()],
             gravity: true,
             orbit: None,
+            exhaust: Exhaust::new(),
             accumulator: 0.0,
         }
     }
@@ -59,6 +62,7 @@ impl Simulation {
         self.ship = scene.ship_start();
         self.camera = ChaseCamera::behind(&self.ship);
         self.orbit = None;
+        self.exhaust.clear();
     }
 
     /// El cuerpo más cercano que se puede orbitar desde donde está la nave.
@@ -106,6 +110,8 @@ impl Simulation {
                     self.ship.step(input, &colliders, STEP);
                 }
             }
+            let boosting = input.boost && input.thrust > 0.0;
+            self.exhaust.step(&self.ship, &scene.ship_model(&self.ship), boosting, STEP);
             self.camera.step(&self.ship, &colliders, STEP);
             self.accumulator -= STEP;
         }

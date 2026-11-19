@@ -9,9 +9,11 @@
 
 mod camera;
 mod controls;
+mod exhaust;
 
 pub use camera::ChaseCamera;
 pub use controls::{PitchControl, read_input};
+pub use exhaust::Exhaust;
 
 use raylib::math::Vector3;
 

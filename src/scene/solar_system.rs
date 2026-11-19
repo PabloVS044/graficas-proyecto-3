@@ -155,6 +155,12 @@ impl SolarSystem {
         level.clamp(MIN_SPHERE_LEVEL as f32, MAX_SPHERE_LEVEL as f32) as u32
     }
 
+    /// Matriz de modelo de la nave: lleva puntos del OBJ al mundo. Sirve también
+    /// para saber dónde quedan sus motores.
+    pub fn ship_model(&self, ship: &Ship) -> Mat4 {
+        Mat4::translation(ship.position) * Mat4::rotation(ship.orientation) * fit_to_radius(&self.ship, SHIP_RADIUS)
+    }
+
     /// Los objetos a dibujar en el instante `time`, vistos desde `camera`.
     pub fn objects(&self, time: f32, ship: &Ship, camera: &Camera, detail: Detail) -> Vec<SceneObject> {
         // `frame` coloca y orienta la esfera sin escala. La icosfera tiene radio 1
@@ -184,7 +190,7 @@ impl SolarSystem {
         objects.push(SceneObject {
             name: "Nave",
             mesh: self.ship.clone(),
-            model: Mat4::translation(ship.position) * Mat4::rotation(ship.orientation) * fit_to_radius(&self.ship, SHIP_RADIUS),
+            model: self.ship_model(ship),
             material: Material::Ship { throttle: ship.throttle, heat: self.ship_heat(time, ship.position) },
         });
 

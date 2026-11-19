@@ -15,7 +15,7 @@ use raylib::prelude::*;
 
 use config::{FAR_PLANE, FIELD_OF_VIEW, NEAR_PLANE, NOISE_SEED, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_SCALE};
 use math::Quat;
-use render::{Background, Camera, FrameContext, Framebuffer, OrbitController, RenderStats};
+use render::{Background, Camera, FrameContext, Framebuffer, OrbitController, RenderStats, Sprite};
 use scene::{Detail, SolarSystem};
 use scene::planets::PLANETS;
 use ship::{ChaseCamera, PitchControl, Ship, ShipInput};
@@ -38,7 +38,7 @@ impl World {
         }
     }
 
-    fn render(&self, framebuffer: &mut Framebuffer, camera: &Camera, time: f32, ship: &Ship, options: Options) -> RenderStats {
+    fn render(&self, framebuffer: &mut Framebuffer, camera: &Camera, time: f32, ship: &Ship, sprites: &[Sprite], options: Options) -> RenderStats {
         let frame = FrameContext::new(
             camera,
             framebuffer.width,
@@ -50,7 +50,7 @@ impl World {
         .with_ship(ship.position)
         .with_culling(options.culling);
         let objects = self.scene.objects(time, ship, camera, options.detail);
-        render::render_frame(framebuffer, &self.background, &objects, &frame)
+        render::render_frame(framebuffer, &self.background, &objects, sprites, &frame)
     }
 }
 
@@ -169,7 +169,7 @@ fn run_window(world: &World) {
         };
 
         let start = Instant::now();
-        let stats = world.render(&mut framebuffer, &camera, simulation.time, &simulation.ship, options);
+        let stats = world.render(&mut framebuffer, &camera, simulation.time, &simulation.ship, &simulation.exhaust.sprites(), options);
         let render_ms = start.elapsed().as_secs_f32() * 1000.0;
         framebuffer.upload();
 
@@ -300,7 +300,7 @@ fn benchmark(world: &World) {
             let start = Instant::now();
             let mut stats = RenderStats::default();
             for _ in 0..FRAMES {
-                stats = world.render(&mut framebuffer, &camera, 0.0, &ship, options);
+                stats = world.render(&mut framebuffer, &camera, 0.0, &ship, &[], options);
             }
             let ms = start.elapsed().as_secs_f32() * 1000.0 / FRAMES as f32;
 
@@ -317,7 +317,7 @@ fn screenshots(world: &World, prefix: &str) {
     let mut framebuffer = Framebuffer::new(RENDER_WIDTH, RENDER_HEIGHT);
     for (name, ship) in fixed_views(world) {
         let camera = ChaseCamera::behind(&ship).camera(&ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
-        world.render(&mut framebuffer, &camera, 0.0, &ship, Options::DEFAULT);
+        world.render(&mut framebuffer, &camera, 0.0, &ship, &[], Options::DEFAULT);
         let path = format!("{prefix}-{}.png", name.replace(' ', "-"));
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
@@ -326,7 +326,7 @@ fn screenshots(world: &World, prefix: &str) {
     // Todo el sistema visto desde arriba.
     let ship = world.scene.ship_start();
     let overview = OrbitController { target: Vector3::zero(), yaw: 0.3, pitch: 1.0, distance: 420.0 };
-    world.render(&mut framebuffer, &overview.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE), 0.0, &ship, Options::DEFAULT);
+    world.render(&mut framebuffer, &overview.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE), 0.0, &ship, &[], Options::DEFAULT);
     let path = format!("{prefix}-sistema.png");
     framebuffer.export(&path);
     println!("Captura guardada en {path}");
@@ -343,7 +343,7 @@ fn screenshots(world: &World, prefix: &str) {
             distance: planet.radius * 3.2,
         };
         let camera = view.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
-        world.render(&mut framebuffer, &camera, 0.0, &ship, Options::DEFAULT);
+        world.render(&mut framebuffer, &camera, 0.0, &ship, &[], Options::DEFAULT);
         let name = planet.name.to_lowercase().replace(' ', "-");
         let path = format!("{prefix}-{name}.png");
         framebuffer.export(&path);
@@ -355,7 +355,7 @@ fn screenshots(world: &World, prefix: &str) {
         let towards_camera = (camera.position - center).normalize();
         let mut visitor = Ship::new(center + towards_camera * (planet.radius * 1.25), ship.orientation);
         visitor.throttle = 0.6;
-        world.render(&mut framebuffer, &camera, 0.4, &visitor, Options::DEFAULT);
+        world.render(&mut framebuffer, &camera, 0.4, &visitor, &[], Options::DEFAULT);
         let path = format!("{prefix}-{name}-cerca.png");
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
@@ -367,7 +367,26 @@ fn screenshots(world: &World, prefix: &str) {
     for (name, yaw) in [("nave-frente", 2.5), ("nave-cola", 0.5)] {
         let orbit = OrbitController { target: ship.position, yaw, pitch: 0.35, distance: 3.2 };
         let camera = orbit.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
-        world.render(&mut framebuffer, &camera, 0.0, &ship, Options::DEFAULT);
+        world.render(&mut framebuffer, &camera, 0.0, &ship, &[], Options::DEFAULT);
+        let path = format!("{prefix}-{name}.png");
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
+    }
+
+    // La nave con el turbo encendido: medio segundo de vuelo para que la estela
+    // de partículas tenga largo, vista de lado y desde atrás.
+    let mut ship = world.scene.ship_start();
+    ship.velocity = ship.forward() * 40.0;
+    ship.throttle = 1.0;
+    let mut exhaust = ship::Exhaust::new();
+    for _ in 0..60 {
+        ship.position += ship.velocity * simulation::STEP;
+        exhaust.step(&ship, &world.scene.ship_model(&ship), true, simulation::STEP);
+    }
+    for (name, yaw, distance) in [("nave-turbo", 1.2, 9.0), ("nave-turbo-cola", 0.25, 6.0)] {
+        let orbit = OrbitController { target: ship.position, yaw: yaw + std::f32::consts::PI, pitch: 0.3, distance };
+        let camera = orbit.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
+        world.render(&mut framebuffer, &camera, 0.0, &ship, &exhaust.sprites(), Options::DEFAULT);
         let path = format!("{prefix}-{name}.png");
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
