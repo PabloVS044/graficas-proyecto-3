@@ -105,13 +105,14 @@ que las copias no sean iguales.
 |---|---|---|---|
 | Jungla | Árbol: tronco inclinado y copa de follaje irregular | Selva: tierra firme, sin mar, mesetas ni aldeas | Luciérnagas en la copa de noche |
 | Jungla | Choza de barro y palos con techo de paja | Aldeas, donde de noche se ven las fogatas | Fuego encendido en la puerta |
-| Ignis | Roca de basalto con hendiduras y poros | Placas firmes, lejos de la lava y de los cráteres | Lava en los poros y base al rojo |
-| Kryos | Grupo de cristales de hielo con punta | Grietas grandes del hielo | Brillo cian por dentro que crece con la nave cerca |
+| Ignis | Roca de basalto con hendiduras y poros: peñas altas o peñascos bajos | Placas firmes, lejos de la lava y de los cráteres | Lava en los poros y base al rojo |
+| Kryos | Cristales de hielo: grupos de puntas o una punta grande suelta | Grietas grandes del hielo | Brillo cian por dentro que crece con la nave cerca |
 
 - **Distribución** (`scene::surface::place`): se toman puntos al azar sobre la esfera
   con la semilla `SURFACE_SEED` (`src/config.rs`) y se quedan solo donde un ruido supera
   un umbral, para que se agrupen en manchas, y donde el terreno del shader del planeta
-  lo permite. Misma semilla, mismas posiciones; `N` cambia la semilla en vivo. Cuántos
+  lo permite, y lejos de los otros objetos de su tipo (`spacing`). Misma semilla,
+  mismas posiciones; `N` cambia la semilla en vivo. Cuántos
   hay de cada tipo, su tamaño y cómo se agrupan se ajustan en el campo `surface` de cada
   planeta en `src/scene/planets.rs`.
 - **Orientación** (`scene::surface::surface_frame`): cada objeto se para con su `+y`
