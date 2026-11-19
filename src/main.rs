@@ -364,6 +364,25 @@ fn screenshots(world: &World, prefix: &str) {
         let path = format!("{prefix}-{name}-cerca.png");
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
+
+        // Desde la nave, rasante sobre el lado de día, para ver los objetos de
+        // la superficie.
+        let up = (towards_sun.normalize() + Vector3::new(0.0, 0.6, 0.0)).normalize();
+        let ahead = up.cross(Vector3::new(0.0, 1.0, 0.0)).normalize();
+        let ground = center + up * planet.radius;
+        let visitor = Ship::new(ground + up * 1.8 - ahead * 4.0, ship.orientation);
+        let camera = Camera {
+            position: ground + up * 2.4 - ahead * 2.5,
+            target: ground + ahead * 2.0,
+            up,
+            field_of_view: FIELD_OF_VIEW.to_radians(),
+            near: NEAR_PLANE,
+            far: FAR_PLANE,
+        };
+        world.render(&mut framebuffer, &camera, 0.0, &visitor, &[], Options::DEFAULT);
+        let path = format!("{prefix}-{name}-suelo.png");
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
     }
 
     // La nave de cerca, en tres cuartos y por detrás, con los motores a fondo.
