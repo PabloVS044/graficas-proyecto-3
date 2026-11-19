@@ -65,6 +65,9 @@ pub struct SurfaceSpec {
     pub cluster_threshold: f32,
     /// Alto mínimo y máximo, en unidades del mundo.
     pub size: (f32, f32),
+    /// Distancia mínima entre dos objetos de este tipo, en radianes sobre la
+    /// esfera, para que no queden amontonados.
+    pub spacing: f32,
 }
 
 /// Un objeto ya ubicado, en el espacio del planeta.
@@ -122,6 +125,10 @@ pub fn place(specs: &[SurfaceSpec], seed: u32) -> Vec<Placement> {
             let direction = point_on_sphere(random(seed, index, 0), random(seed, index, 1));
             let cluster = fbm(&clusters, direction * spec.cluster_scale, 3);
             if cluster < spec.cluster_threshold || !ground_allows(spec.ground, &terrain, direction) {
+                continue;
+            }
+            let start = placements.len() - placed;
+            if placements[start..].iter().any(|other: &Placement| surface_distance(other.direction, direction) < spec.spacing) {
                 continue;
             }
 
@@ -286,6 +293,20 @@ mod tests {
 
     fn planet(name: &str) -> &'static PlanetSpec {
         PLANETS.iter().find(|planet| planet.name == name).unwrap()
+    }
+
+    #[test]
+    fn objects_keep_their_distance() {
+        for planet in PLANETS {
+            for (kind, spec) in planet.surface.iter().enumerate() {
+                let placements = place(&planet.surface[kind..=kind], 7);
+                for (i, a) in placements.iter().enumerate() {
+                    for b in &placements[i + 1..] {
+                        assert!(surface_distance(a.direction, b.direction) >= spec.spacing, "{} amontonados", planet.name);
+                    }
+                }
+            }
+        }
     }
 
     #[test]

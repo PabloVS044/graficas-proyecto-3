@@ -76,6 +76,7 @@ pub const PLANETS: &[PlanetSpec] = &[
                 cluster_scale: 3.0,
                 cluster_threshold: 0.47,
                 size: (0.18, 0.32),
+                spacing: 0.025,
             },
             SurfaceSpec {
                 prop: Prop::Hut,
@@ -84,6 +85,7 @@ pub const PLANETS: &[PlanetSpec] = &[
                 cluster_scale: 1.0,
                 cluster_threshold: 0.0,
                 size: (0.2, 0.28),
+                spacing: 0.06,
             },
         ],
     },
@@ -123,11 +125,12 @@ pub const PLANETS: &[PlanetSpec] = &[
         moons: &[],
         surface: &[SurfaceSpec {
             prop: Prop::Crystal,
-            count: 600,
+            count: 230,
             ground: Ground::IceCrack,
             cluster_scale: 2.0,
-            cluster_threshold: 0.3,
+            cluster_threshold: 0.2,
             size: (0.22, 0.45),
+            spacing: 0.13,
         }],
     },
     PlanetSpec {
@@ -144,11 +147,12 @@ pub const PLANETS: &[PlanetSpec] = &[
         moons: &[],
         surface: &[SurfaceSpec {
             prop: Prop::Rock,
-            count: 400,
+            count: 150,
             ground: Ground::Crust,
             cluster_scale: 2.5,
-            cluster_threshold: 0.38,
+            cluster_threshold: 0.25,
             size: (0.25, 0.5),
+            spacing: 0.12,
         }],
     },
     PlanetSpec {
