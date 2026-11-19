@@ -6,7 +6,7 @@ use std::sync::Arc;
 use raylib::math::Vector3;
 
 use super::planets::{MoonSpec, PLANETS, PlanetSpec, SUN};
-use super::{Collider, SceneObject, fit_to_radius};
+use super::{Collider, SceneObject, fit_to_radius, proximity};
 use crate::config::{SHIP_MODEL_PATH, SPHERE_MODEL_PATH};
 use crate::math::{Mat4, Quat};
 use crate::mesh::{Mesh, Normals, Obj};
@@ -63,6 +63,35 @@ impl SolarSystem {
             * Mat4::rotation_y(planet.spin_speed * time)
     }
 
+    /// El planeta al que la nave está más cerca, con su índice en `PLANETS` y su
+    /// `proximity`. `None` si la nave no está cerca de ninguno.
+    pub fn nearest_planet(&self, time: f32, position: Vector3) -> Option<(usize, f32)> {
+        PLANETS
+            .iter()
+            .enumerate()
+            .map(|(index, planet)| {
+                let distance = (position - self.planet_center(planet, time)).length();
+                (index, proximity(distance, planet.radius))
+            })
+            .filter(|(_, near)| *near > 0.0)
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+    }
+
+    /// `proximity` de la nave al sol.
+    pub fn sun_proximity(&self, position: Vector3) -> f32 {
+        proximity((position - self.light_position()).length(), SUN.radius)
+    }
+
+    /// Cuánto se calienta el casco: lo cerca que esté del sol o de un planeta
+    /// volcánico, de 0 a 1.
+    pub fn ship_heat(&self, time: f32, position: Vector3) -> f32 {
+        PLANETS
+            .iter()
+            .filter(|planet| matches!(planet.material, Material::Volcanic))
+            .map(|planet| proximity((position - self.planet_center(planet, time)).length(), planet.radius))
+            .fold(self.sun_proximity(position), f32::max)
+    }
+
     /// Cuerpos sólidos en el instante `time`, con su velocidad.
     pub fn colliders(&self, time: f32) -> Vec<Collider> {
         // Velocidad por diferencia entre dos instantes cercanos.
@@ -113,7 +142,7 @@ impl SolarSystem {
             name: "Nave",
             mesh: self.ship.clone(),
             model: Mat4::translation(ship.position) * Mat4::rotation(ship.orientation) * fit_to_radius(&self.ship, SHIP_RADIUS),
-            material: Material::Ship { throttle: ship.throttle },
+            material: Material::Ship { throttle: ship.throttle, heat: self.ship_heat(time, ship.position) },
         });
 
         objects

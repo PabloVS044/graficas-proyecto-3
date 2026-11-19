@@ -46,7 +46,8 @@ impl World {
             time,
             self.scene.light_position(),
             &self.noise,
-        );
+        )
+        .with_ship(ship.position);
         let objects = self.scene.objects(time, ship);
         render::render_frame(framebuffer, &self.background, &objects, &frame)
     }
@@ -137,6 +138,39 @@ fn run_window(world: &World) {
         let mut drawing = window.begin_drawing(&thread);
         framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
         draw_hud(&mut drawing, &stats, render_ms, &simulation, view, pitch_control);
+        draw_exploration(&mut drawing, &world.scene, &simulation);
+    }
+}
+
+/// Nombre y descripción del planeta cercano, planetas descubiertos y aviso de
+/// temperatura junto al sol.
+fn draw_exploration(drawing: &mut RaylibDrawHandle, scene: &SolarSystem, simulation: &Simulation) {
+    let window_width = (RENDER_WIDTH * WINDOW_SCALE) as i32;
+    let found = simulation.discovered.iter().filter(|found| **found).count();
+    let counter = format!("planetas descubiertos: {found}/{}", PLANETS.len());
+    let counter_width = drawing.measure_text(&counter, 20);
+    drawing.draw_text(&counter, window_width - counter_width - 14, 10, 20, Color::GOLD);
+
+    // El nombre aparece de a poco al acercarse.
+    if let Some((index, near)) = scene.nearest_planet(simulation.time, simulation.ship.position) {
+        let alpha = (near * 2.5).min(1.0);
+        if alpha > 0.05 {
+            let planet = &PLANETS[index];
+            let fade = |color: Color| color.alpha(alpha);
+            let name_width = drawing.measure_text(planet.name, 48);
+            drawing.draw_text(planet.name, (window_width - name_width) / 2, 40, 48, fade(Color::RAYWHITE));
+            let line_width = drawing.measure_text(planet.description, 22);
+            drawing.draw_text(planet.description, (window_width - line_width) / 2, 96, 22, fade(Color::LIGHTGRAY));
+        }
+    }
+
+    let heat = scene.ship_heat(simulation.time, simulation.ship.position);
+    if heat > 0.3 {
+        let warning = format!("TEMPERATURA DEL CASCO: {:.0}%", heat * 100.0);
+        let width = drawing.measure_text(&warning, 26);
+        // Parpadea más rápido cuanto más caliente.
+        let blink = ((simulation.time * (3.0 + heat * 6.0)).sin() * 0.5 + 0.5) * 0.5 + 0.5;
+        drawing.draw_text(&warning, (window_width - width) / 2, 132, 26, Color::ORANGERED.alpha(blink));
     }
 }
 
@@ -237,8 +271,21 @@ fn screenshots(world: &World, prefix: &str) {
             pitch: 0.25,
             distance: planet.radius * 3.2,
         };
-        world.render(&mut framebuffer, &view.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE), 0.0, &ship);
-        let path = format!("{prefix}-{}.png", planet.name.to_lowercase().replace(' ', "-"));
+        let camera = view.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
+        world.render(&mut framebuffer, &camera, 0.0, &ship);
+        let name = planet.name.to_lowercase().replace(' ', "-");
+        let path = format!("{prefix}-{name}.png");
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
+
+        // Lo mismo con la nave casi tocando la superficie, entre la cámara y el
+        // planeta, para ver cómo reacciona. Se deja pasar un poco de tiempo para
+        // que los efectos animados estén a media marcha.
+        let towards_camera = (camera.position - center).normalize();
+        let mut visitor = Ship::new(center + towards_camera * (planet.radius * 1.25), ship.orientation);
+        visitor.throttle = 0.6;
+        world.render(&mut framebuffer, &camera, 0.4, &visitor);
+        let path = format!("{prefix}-{name}-cerca.png");
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
     }

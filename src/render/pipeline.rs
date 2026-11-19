@@ -11,7 +11,7 @@ use super::raster::{self, Outcome};
 use super::{FrameContext, Framebuffer, ObjectContext, RenderStats};
 use crate::math::Mat4;
 use crate::mesh::Vertex;
-use crate::scene::SceneObject;
+use crate::scene::{self, SceneObject};
 use crate::shaders;
 
 /// Vértice ya proyectado: lo que el rasterizador necesita.
@@ -137,7 +137,16 @@ pub fn draw_object(framebuffer: &mut Framebuffer, object: &SceneObject, frame: &
     }
 
     let to_sun = frame.light_position - object.model.origin();
-    let object_context = ObjectContext { sun_direction: object.model.inverse_rotate_direction(to_sun) };
+    // Centro y radio de la esfera envolvente en el mundo. La escala es uniforme,
+    // así que basta con medir cuánto se estira un eje.
+    let center = object.model.transform_point(object.mesh.bounds.center);
+    let radius = object.mesh.bounds.radius * object.model.transform_direction(Vector3::new(1.0, 0.0, 0.0)).length();
+    let to_ship = frame.ship_position - center;
+    let object_context = ObjectContext {
+        sun_direction: object.model.inverse_rotate_direction(to_sun),
+        proximity: scene::proximity(to_ship.length(), radius),
+        ship_direction: object.model.inverse_rotate_direction(to_ship),
+    };
 
     let shaded: Vec<(usize, Vector3)> = visible
         .par_iter()

@@ -7,6 +7,7 @@
 //! en una rápida a veces ninguno, pero el resultado es el mismo.
 
 use crate::scene::SolarSystem;
+use crate::scene::planets::PLANETS;
 use crate::ship::{ChaseCamera, Ship, ShipInput};
 
 /// Duración de un paso de física, en segundos.
@@ -21,13 +22,25 @@ pub struct Simulation {
     pub ship: Ship,
     pub camera: ChaseCamera,
     pub paused: bool,
+    /// Un lugar por planeta de `PLANETS`: si la nave ya llegó cerca de él.
+    pub discovered: Vec<bool>,
     accumulator: f32,
 }
+
+/// Qué tan cerca hay que llegar a un planeta para contarlo como descubierto.
+const DISCOVERY_PROXIMITY: f32 = 0.6;
 
 impl Simulation {
     pub fn new(scene: &SolarSystem) -> Simulation {
         let ship = scene.ship_start();
-        Simulation { time: 0.0, ship, camera: ChaseCamera::behind(&ship), paused: false, accumulator: 0.0 }
+        Simulation {
+            time: 0.0,
+            ship,
+            camera: ChaseCamera::behind(&ship),
+            paused: false,
+            discovered: vec![false; PLANETS.len()],
+            accumulator: 0.0,
+        }
     }
 
     /// Vuelve la nave al inicio sin detener las órbitas.
@@ -49,6 +62,12 @@ impl Simulation {
             self.ship.step(input, &colliders, STEP);
             self.camera.step(&self.ship, &colliders, STEP);
             self.accumulator -= STEP;
+        }
+
+        if let Some((index, near)) = scene.nearest_planet(self.time, self.ship.position) {
+            if near >= DISCOVERY_PROXIMITY {
+                self.discovered[index] = true;
+            }
         }
     }
 }
