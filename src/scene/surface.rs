@@ -174,8 +174,14 @@ impl PropMeshes {
         PropMeshes {
             trunk: Arc::new(shapes::tree_trunk()),
             crowns: (0..3).map(|variant| Arc::new(shapes::tree_crown(variant))).collect(),
-            rocks: (0..3).map(|variant| Arc::new(shapes::basalt_rock(variant))).collect(),
-            crystals: (0..4).map(|variant| Arc::new(shapes::ice_crystals(variant))).collect(),
+            rocks: (0..2)
+                .flat_map(|variant| [shapes::basalt_rock(variant), shapes::basalt_boulder(variant)])
+                .map(Arc::new)
+                .collect(),
+            crystals: (0..2)
+                .flat_map(|variant| [shapes::ice_crystals(variant), shapes::ice_shard(variant)])
+                .map(Arc::new)
+                .collect(),
             hut_walls: (0..3).map(|variant| Arc::new(shapes::hut_walls(variant))).collect(),
             hut_roofs: (0..3).map(|variant| Arc::new(shapes::hut_roof(variant))).collect(),
         }

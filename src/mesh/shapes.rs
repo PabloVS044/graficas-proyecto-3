@@ -126,6 +126,21 @@ pub fn basalt_rock(variant: u32) -> Mesh {
     builder.build()
 }
 
+/// Peñasco bajo y ancho, aplastado y con hendiduras, como `basalt_rock`.
+pub fn basalt_boulder(variant: u32) -> Mesh {
+    let seed = 400 + variant;
+    let noise = OpenSimplex::new(seed);
+    let builder = displaced_sphere(2, Vector3::new(0.55, 0.34, 0.45), Vector3::new(0.0, 0.18, 0.0), |p| {
+        // Base plana: los puntos de abajo se aplastan contra el suelo.
+        let flat = if p.y < 0.0 { 1.0 + p.y * 0.35 } else { 1.0 };
+        let bumps = 1.0 + sample(&noise, p * 1.4) * 0.3 + sample(&noise, p * 4.5) * 0.1;
+        let (f1, _, _) = worley(p * 2.6 + Vector3::new(0.0, variant as f32 * 5.0, 0.0), seed);
+        let pore = 1.0 - smoothstep(0.1, 0.45, f1);
+        (flat * bumps - pore * 0.2, pore)
+    });
+    builder.build()
+}
+
 /// Prisma hexagonal con punta, de pie sobre el origen. La altura relativa de
 /// cada vértice (0 en la base, 1 en la punta) va en `uv.x`.
 fn crystal_prism(builder: &mut Builder, radius: f32, height: f32, tilt: Mat4) {
@@ -150,7 +165,7 @@ fn crystal_prism(builder: &mut Builder, radius: f32, height: f32, tilt: Mat4) {
 pub fn ice_crystals(variant: u32) -> Mesh {
     let random = |salt: u32| cell_random((variant as i32, 5, 9), salt);
     let mut builder = Builder::default();
-    let count = 3 + (random(0) * 3.0) as u32;
+    let count = 3 + (random(0) * 2.0) as u32;
 
     for k in 0..count {
         let angle = k as f32 / count as f32 * TAU + random(10 + k) * 0.8;
@@ -160,6 +175,20 @@ pub fn ice_crystals(variant: u32) -> Mesh {
         let tilt = Mat4::rotation(Quat::from_axis_angle(axis.normalize(), lean));
         crystal_prism(&mut builder, 0.09 + random(40 + k) * 0.04, height, tilt);
     }
+    builder.build()
+}
+
+/// Una punta de hielo grande e inclinada, con otra pequeña al pie.
+pub fn ice_shard(variant: u32) -> Mesh {
+    let random = |salt: u32| cell_random((variant as i32, 6, 2), salt);
+    let mut builder = Builder::default();
+    let angle = random(0) * TAU;
+    let axis = Vector3::new(angle.cos(), 0.0, -angle.sin());
+    let big = Mat4::rotation(Quat::from_axis_angle(axis, 0.25 + random(1) * 0.2));
+    crystal_prism(&mut builder, 0.13, 1.0, big);
+    let small = Mat4::translation(Vector3::new(axis.z * 0.12, 0.0, -axis.x * 0.12))
+        * Mat4::rotation(Quat::from_axis_angle(-axis, 0.5));
+    crystal_prism(&mut builder, 0.06, 0.35 + random(2) * 0.15, small);
     builder.build()
 }
 
@@ -246,7 +275,7 @@ mod tests {
     use super::*;
 
     fn meshes() -> Vec<Mesh> {
-        vec![tree_trunk(), tree_crown(0), tree_crown(1), basalt_rock(0), basalt_rock(1), ice_crystals(0), ice_crystals(1), hut_walls(0), hut_roof(0)]
+        vec![tree_trunk(), tree_crown(0), tree_crown(1), basalt_rock(0), basalt_rock(1), ice_crystals(0), ice_crystals(1), hut_walls(0), hut_roof(0), basalt_boulder(0), ice_shard(0)]
     }
 
     /// Sin triángulos degenerados: una normal con largo 1 en cada vértice.
@@ -271,6 +300,8 @@ mod tests {
             assert!(signed_volume(&tree_crown(variant)) > 0.0);
             assert!(signed_volume(&basalt_rock(variant)) > 0.0);
             assert!(signed_volume(&ice_crystals(variant)) > 0.0);
+            assert!(signed_volume(&basalt_boulder(variant)) > 0.0);
+            assert!(signed_volume(&ice_shard(variant)) > 0.0);
             assert!(signed_volume(&hut_roof(variant)) > 0.0);
         }
     }
