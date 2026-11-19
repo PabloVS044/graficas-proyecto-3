@@ -3,7 +3,7 @@
 pub mod planets;
 mod solar_system;
 
-pub use solar_system::SolarSystem;
+pub use solar_system::{Detail, SolarSystem};
 
 use std::sync::Arc;
 

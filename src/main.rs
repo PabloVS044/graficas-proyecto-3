@@ -16,7 +16,7 @@ use raylib::prelude::*;
 use config::{FAR_PLANE, FIELD_OF_VIEW, NEAR_PLANE, NOISE_SEED, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_SCALE};
 use math::Quat;
 use render::{Background, Camera, FrameContext, Framebuffer, OrbitController, RenderStats};
-use scene::SolarSystem;
+use scene::{Detail, SolarSystem};
 use scene::planets::PLANETS;
 use ship::{ChaseCamera, PitchControl, Ship, ShipInput};
 use simulation::Simulation;
@@ -38,7 +38,7 @@ impl World {
         }
     }
 
-    fn render(&self, framebuffer: &mut Framebuffer, camera: &Camera, time: f32, ship: &Ship) -> RenderStats {
+    fn render(&self, framebuffer: &mut Framebuffer, camera: &Camera, time: f32, ship: &Ship, options: Options) -> RenderStats {
         let frame = FrameContext::new(
             camera,
             framebuffer.width,
@@ -48,8 +48,30 @@ impl World {
             &self.noise,
         )
         .with_ship(ship.position);
-        let objects = self.scene.objects(time, ship);
+        let objects = self.scene.objects(time, ship, camera, options.detail);
         render::render_frame(framebuffer, &self.background, &objects, &frame)
+    }
+}
+
+/// Optimizaciones del renderer que se pueden apagar para comparar cuánto
+/// trabajo ahorran.
+#[derive(Clone, Copy, PartialEq)]
+struct Options {
+    detail: Detail,
+}
+
+impl Options {
+    const DEFAULT: Options = Options { detail: Detail::ByDistance };
+    /// Todo apagado: lo que costaría dibujar sin optimizaciones.
+    const NONE: Options = Options { detail: Detail::Max };
+
+    /// Texto para el HUD, con la tecla que cambia cada opción.
+    fn lines(&self) -> [String; 1] {
+        let detail = match self.detail {
+            Detail::ByDistance => "por distancia",
+            Detail::Max => "siempre maximo",
+        };
+        [format!("detalle de esferas: {detail} (L cambia)")]
     }
 }
 
@@ -94,6 +116,7 @@ fn run_window(world: &World) {
     let mut view = View::Chase;
     let mut inspect = OrbitController { distance: 10.0, ..OrbitController::new() };
     let mut pitch_control = PitchControl::Aircraft;
+    let mut options = Options::DEFAULT;
 
     while !window.window_should_close() {
         let frame_time = window.get_frame_time();
@@ -103,6 +126,9 @@ fn run_window(world: &World) {
         }
         if window.is_key_pressed(KeyboardKey::KEY_I) {
             pitch_control = pitch_control.toggled();
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_L) {
+            options.detail = if options.detail == Detail::ByDistance { Detail::Max } else { Detail::ByDistance };
         }
         if window.is_key_pressed(KeyboardKey::KEY_C) {
             view = if view == View::Chase { View::Inspect } else { View::Chase };
@@ -131,13 +157,13 @@ fn run_window(world: &World) {
         };
 
         let start = Instant::now();
-        let stats = world.render(&mut framebuffer, &camera, simulation.time, &simulation.ship);
+        let stats = world.render(&mut framebuffer, &camera, simulation.time, &simulation.ship, options);
         let render_ms = start.elapsed().as_secs_f32() * 1000.0;
         framebuffer.upload();
 
         let mut drawing = window.begin_drawing(&thread);
         framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
-        draw_hud(&mut drawing, &stats, render_ms, &simulation, view, pitch_control);
+        draw_hud(&mut drawing, &stats, render_ms, &simulation, view, pitch_control, options);
         draw_exploration(&mut drawing, &world.scene, &simulation);
     }
 }
@@ -181,6 +207,7 @@ fn draw_hud(
     simulation: &Simulation,
     view: View,
     pitch_control: PitchControl,
+    options: Options,
 ) {
     const SIZE: i32 = 20;
     let window_height = (RENDER_HEIGHT * WINDOW_SCALE) as i32;
@@ -192,8 +219,11 @@ fn draw_hud(
     }
     drawing.draw_text(&format!("velocidad: {:.1}", simulation.ship.speed()), 10, 134, SIZE, Color::SKYBLUE);
     drawing.draw_text(&format!("cabeceo: {} (I cambia)", pitch_control.label()), 10, 158, SIZE, Color::SKYBLUE);
+    for (row, line) in options.lines().iter().enumerate() {
+        drawing.draw_text(line, 10, 182 + row as i32 * 24, SIZE, Color::LIME);
+    }
     if simulation.paused {
-        drawing.draw_text("PAUSA", 10, 182, SIZE, Color::YELLOW);
+        drawing.draw_text("PAUSA", 10, 230, SIZE, Color::YELLOW);
     }
 
     let controls = match view {
@@ -227,16 +257,19 @@ fn benchmark(world: &World) {
     for (name, ship) in fixed_views(world) {
         let camera = ChaseCamera::behind(&ship).camera(&ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
 
-        let start = Instant::now();
-        let mut stats = RenderStats::default();
-        for _ in 0..FRAMES {
-            stats = world.render(&mut framebuffer, &camera, 0.0, &ship);
-        }
-        let ms = start.elapsed().as_secs_f32() * 1000.0 / FRAMES as f32;
+        // Con y sin optimizaciones, para ver cuánto trabajo ahorran.
+        for (label, options) in [("", Options::DEFAULT), (" (sin optimizar)", Options::NONE)] {
+            let start = Instant::now();
+            let mut stats = RenderStats::default();
+            for _ in 0..FRAMES {
+                stats = world.render(&mut framebuffer, &camera, 0.0, &ship, options);
+            }
+            let ms = start.elapsed().as_secs_f32() * 1000.0 / FRAMES as f32;
 
-        println!("{name}: {ms:.1} ms por cuadro");
-        for line in stats.lines() {
-            println!("    {line}");
+            println!("{name}{label}: {ms:.1} ms por cuadro");
+            for line in stats.lines() {
+                println!("    {line}");
+            }
         }
     }
 }
@@ -246,7 +279,7 @@ fn screenshots(world: &World, prefix: &str) {
     let mut framebuffer = Framebuffer::new(RENDER_WIDTH, RENDER_HEIGHT);
     for (name, ship) in fixed_views(world) {
         let camera = ChaseCamera::behind(&ship).camera(&ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
-        world.render(&mut framebuffer, &camera, 0.0, &ship);
+        world.render(&mut framebuffer, &camera, 0.0, &ship, Options::DEFAULT);
         let path = format!("{prefix}-{}.png", name.replace(' ', "-"));
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
@@ -255,7 +288,7 @@ fn screenshots(world: &World, prefix: &str) {
     // Todo el sistema visto desde arriba.
     let ship = world.scene.ship_start();
     let overview = OrbitController { target: Vector3::zero(), yaw: 0.3, pitch: 1.0, distance: 420.0 };
-    world.render(&mut framebuffer, &overview.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE), 0.0, &ship);
+    world.render(&mut framebuffer, &overview.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE), 0.0, &ship, Options::DEFAULT);
     let path = format!("{prefix}-sistema.png");
     framebuffer.export(&path);
     println!("Captura guardada en {path}");
@@ -272,7 +305,7 @@ fn screenshots(world: &World, prefix: &str) {
             distance: planet.radius * 3.2,
         };
         let camera = view.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
-        world.render(&mut framebuffer, &camera, 0.0, &ship);
+        world.render(&mut framebuffer, &camera, 0.0, &ship, Options::DEFAULT);
         let name = planet.name.to_lowercase().replace(' ', "-");
         let path = format!("{prefix}-{name}.png");
         framebuffer.export(&path);
@@ -284,7 +317,7 @@ fn screenshots(world: &World, prefix: &str) {
         let towards_camera = (camera.position - center).normalize();
         let mut visitor = Ship::new(center + towards_camera * (planet.radius * 1.25), ship.orientation);
         visitor.throttle = 0.6;
-        world.render(&mut framebuffer, &camera, 0.4, &visitor);
+        world.render(&mut framebuffer, &camera, 0.4, &visitor, Options::DEFAULT);
         let path = format!("{prefix}-{name}-cerca.png");
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
@@ -296,7 +329,7 @@ fn screenshots(world: &World, prefix: &str) {
     for (name, yaw) in [("nave-frente", 2.5), ("nave-cola", 0.5)] {
         let orbit = OrbitController { target: ship.position, yaw, pitch: 0.35, distance: 3.2 };
         let camera = orbit.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
-        world.render(&mut framebuffer, &camera, 0.0, &ship);
+        world.render(&mut framebuffer, &camera, 0.0, &ship, Options::DEFAULT);
         let path = format!("{prefix}-{name}.png");
         framebuffer.export(&path);
         println!("Captura guardada en {path}");
