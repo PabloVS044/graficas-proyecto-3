@@ -372,8 +372,8 @@ fn screenshots(world: &World, prefix: &str) {
         let ground = center + up * planet.radius;
         let visitor = Ship::new(ground + up * 1.8 - ahead * 4.0, ship.orientation);
         let camera = Camera {
-            position: ground + up * 2.4 - ahead * 2.5,
-            target: ground + ahead * 2.0,
+            position: ground + up * 1.6 - ahead * 2.0,
+            target: ground + ahead * 1.5,
             up,
             field_of_view: FIELD_OF_VIEW.to_radians(),
             near: NEAR_PLANE,
