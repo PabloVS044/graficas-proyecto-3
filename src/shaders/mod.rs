@@ -15,6 +15,8 @@ mod sun;
 mod volcanic;
 pub mod noise_helpers;
 
+pub use jungle::is_forest;
+
 use raylib::math::Vector3;
 
 use crate::render::{Fragment, FrameContext, ObjectContext};

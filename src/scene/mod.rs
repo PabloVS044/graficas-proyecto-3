@@ -2,6 +2,7 @@
 
 pub mod planets;
 mod solar_system;
+mod surface;
 
 pub use solar_system::{Detail, SolarSystem};
 

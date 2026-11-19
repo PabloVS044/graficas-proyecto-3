@@ -197,6 +197,17 @@ fn settlements(noise: &OpenSimplex, p: Vector3, time: f32) -> Vector3 {
     (color(1.0, 0.52, 0.10) * fire * CAMPFIRE_BRIGHTNESS + embers) * area
 }
 
+/// Altura del terreno en un punto de la esfera de radio 1.
+fn terrain_height(noise: &OpenSimplex, p: Vector3) -> f32 {
+    fbm(noise, p * CONTINENT_SCALE, 5)
+}
+
+/// Si en `p` hay selva: tierra firme, fuera de las mesetas de roca.
+pub fn is_forest(noise: &OpenSimplex, p: Vector3) -> bool {
+    let height = terrain_height(noise, p.normalize());
+    height > SEA_LEVEL + 0.01 && height < HIGHLAND_LEVEL - 0.02
+}
+
 pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) -> Vector3 {
     let noise = &frame.noise;
     let time = frame.time;
@@ -205,7 +216,7 @@ pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) 
     let normal = fragment.object_normal;
 
     // Una sola altura decide mar, tierra y roca.
-    let height = fbm(noise, p * CONTINENT_SCALE, 5);
+    let height = terrain_height(noise, p);
     let land = smoothstep(SEA_LEVEL - 0.004, SEA_LEVEL + 0.004, height);
 
     // Mar: más claro cuanto más cerca de la costa.

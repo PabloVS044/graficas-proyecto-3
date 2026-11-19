@@ -90,7 +90,7 @@ enum View {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let world = World::load();
+    let mut world = World::load();
 
     if args.iter().any(|arg| arg == "--benchmark") {
         benchmark(&world);
@@ -102,10 +102,10 @@ fn main() {
         return;
     }
 
-    run_window(&world);
+    run_window(&mut world);
 }
 
-fn run_window(world: &World) {
+fn run_window(world: &mut World) {
     let (mut window, thread) = raylib::init()
         .size((RENDER_WIDTH * WINDOW_SCALE) as i32, (RENDER_HEIGHT * WINDOW_SCALE) as i32)
         .title("spaceTravel")
@@ -138,6 +138,10 @@ fn run_window(world: &World) {
         }
         if window.is_key_pressed(KeyboardKey::KEY_F) {
             options.culling = !options.culling;
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_N) {
+            let seed = world.scene.surface_seed().wrapping_add(1);
+            world.scene.set_surface_seed(seed);
         }
         if window.is_key_pressed(KeyboardKey::KEY_C) {
             view = if view == View::Chase { View::Inspect } else { View::Chase };
@@ -259,13 +263,14 @@ fn draw_hud(
     };
     let mode_color = if simulation.orbit.is_some() { Color::GOLD } else { Color::SKYBLUE };
     drawing.draw_text(&mode, 10, 254, SIZE, mode_color);
+    drawing.draw_text(&format!("semilla de superficie: {} (N cambia)", scene.surface_seed()), 10, 278, SIZE, Color::LIME);
     if simulation.paused {
         drawing.draw_text("PAUSA", 10, 302, SIZE, Color::YELLOW);
     }
 
     let controls = match view {
         View::Chase if simulation.orbit.is_some() => "W/S: acelerar/frenar   Izq/Der: rumbo   Arriba/Abajo: altura (I invierte)   Shift: turbo   O: vuelo libre   C: inspeccionar   Espacio: pausa",
-        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   C: inspeccionar   R: reiniciar   Espacio: pausa",
+        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   N: semilla   C: inspeccionar   R: reiniciar   Espacio: pausa",
         View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   Espacio: pausa",
     };
     drawing.draw_text(controls, 10, window_height - 30, SIZE, Color::LIGHTGRAY);
