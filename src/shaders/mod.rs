@@ -52,6 +52,9 @@ pub enum Material {
     /// Cristal de hielo que brilla por dentro; `glow` de 0 a 1 según la cercanía
     /// de la nave a su planeta.
     Crystal { glow: f32 },
+    /// Copa de árbol con luciérnagas de noche. `ground_up`: el arriba del suelo
+    /// donde está, en el mundo.
+    Foliage { albedo: Vector3, ground_up: Vector3 },
     /// Techo de paja de una choza.
     Thatch,
     /// Pared de barro de una choza, con el fuego encendido en la puerta.
@@ -76,6 +79,7 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, obj
         Material::Ice => ice::shade(fragment, frame, object),
         Material::Dormant => dormant::shade(fragment, frame, object),
         Material::Basalt => props::basalt(fragment, frame),
+        Material::Foliage { albedo, ground_up } => props::foliage(fragment, frame, albedo, ground_up),
         Material::Thatch => props::thatch(fragment, frame),
         Material::HutWall { ground_up } => props::hut_wall(fragment, frame, ground_up),
         Material::Crystal { glow } => props::crystal(fragment, frame, glow),

@@ -139,7 +139,7 @@ fn night_factor(normal: Vector3, light: Vector3) -> f32 {
 /// que parpadea. `steady` es el brillo que nunca pierde: en 0 se apaga del todo y
 /// se mueve un poco; en 1 queda fijo y siempre encendido. Devuelve de 0 a 1.
 #[allow(clippy::too_many_arguments)]
-fn sparkle(
+pub(super) fn sparkle(
     p: Vector3,
     grid: f32,
     chance: f32,

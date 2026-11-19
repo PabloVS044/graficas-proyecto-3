@@ -2,6 +2,7 @@
 
 use raylib::math::Vector3;
 
+use super::jungle::sparkle;
 use super::noise_helpers::{fbm, sample, worley};
 use super::{color, light_direction, mix, smoothstep};
 use crate::render::{Fragment, FrameContext};
@@ -53,6 +54,15 @@ fn sunlight(fragment: &Fragment, frame: &FrameContext) -> f32 {
 /// Qué tan de noche es donde está el objeto: 1 si el suelo no ve el sol.
 fn night(ground_up: Vector3, fragment: &Fragment, frame: &FrameContext) -> f32 {
     1.0 - smoothstep(-0.1, 0.15, ground_up.dot(light_direction(fragment, frame)))
+}
+
+/// Copa de árbol con luciérnagas que se encienden de noche. `ground_up` es
+/// la dirección del suelo hacia arriba en el mundo.
+pub fn foliage(fragment: &Fragment, frame: &FrameContext, albedo: Vector3, ground_up: Vector3) -> Vector3 {
+    let p = fragment.object_position;
+    let leaves = albedo * (0.8 + fbm(&frame.noise, p * 14.0, 2) * 0.4);
+    let fireflies = sparkle(p, 20.0, 0.4, 0.42, 90, frame.time, 2.2, 0.0);
+    leaves * sunlight(fragment, frame) + color(0.75, 1.0, 0.3) * (fireflies * 2.0 * night(ground_up, fragment, frame))
 }
 
 /// Paja del techo: hebras que bajan desde la punta, en tonos de heno. Los

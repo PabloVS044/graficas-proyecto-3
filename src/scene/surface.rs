@@ -198,7 +198,7 @@ impl PropMeshes {
                 let leaves = mix(color(0.10, 0.36, 0.08), color(0.34, 0.55, 0.10), v);
                 vec![
                     (self.trunk.clone(), Material::Lambert { albedo: color(0.40, 0.25, 0.13) }),
-                    (crown, Material::Lambert { albedo: leaves }),
+                    (crown, Material::Foliage { albedo: leaves, ground_up }),
                 ]
             }
         }
