@@ -7,9 +7,9 @@ use raylib::math::Vector3;
 
 use super::planets::{MoonSpec, PLANETS, PlanetSpec, SUN};
 use super::{Collider, SceneObject, fit_to_radius, proximity};
-use crate::config::{SHIP_MODEL_PATH, SPHERE_MODEL_PATH};
+use crate::config::SHIP_MODEL_PATH;
 use crate::math::{Mat4, Quat};
-use crate::mesh::{Mesh, Normals, Obj};
+use crate::mesh::{Mesh, Normals, Obj, icosphere};
 use crate::shaders::Material;
 use crate::ship::Ship;
 
@@ -35,7 +35,7 @@ fn moon_offset(moon: &MoonSpec, time: f32) -> Vector3 {
 impl SolarSystem {
     pub fn load() -> Result<SolarSystem, String> {
         Ok(SolarSystem {
-            sphere: Arc::new(Obj::load(SPHERE_MODEL_PATH)?.to_mesh(Normals::Smooth)),
+            sphere: Arc::new(icosphere(4)),
             ship: Arc::new(Obj::load(SHIP_MODEL_PATH)?.to_mesh(Normals::Authored)),
         })
     }

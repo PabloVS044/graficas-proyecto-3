@@ -1,7 +1,9 @@
 //! Geometría: vértices, mallas y su esfera envolvente.
 
+pub mod icosphere;
 mod obj;
 
+pub use icosphere::icosphere;
 pub use obj::{Normals, Obj};
 
 use raylib::math::{Vector2, Vector3};
