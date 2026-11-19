@@ -26,3 +26,21 @@ pub fn basalt(fragment: &Fragment, frame: &FrameContext) -> Vector3 {
         + color(0.8, 0.16, 0.0) * (base * 0.9);
     rock * (0.08 + light * 0.92) * (1.0 - lava) + glow
 }
+
+/// Cristal de hielo: azul claro, más transparente en los bordes, con reflejo
+/// del sol y un brillo cian por dentro que sube desde la base. `glow` va de 0
+/// (nave lejos) a 1 (nave encima).
+pub fn crystal(fragment: &Fragment, frame: &FrameContext, glow: f32) -> Vector3 {
+    let normal = fragment.normal;
+    let to_light = light_direction(fragment, frame);
+    let view = (frame.camera_position - fragment.world_position).normalize();
+    let height = fragment.uv.x;
+
+    let body = mix(color(0.30, 0.55, 0.80), color(0.80, 0.93, 1.0), height);
+    let diffuse = normal.dot(to_light).max(0.0);
+    let rim = (1.0 - normal.dot(view).abs()).powf(2.0);
+    let glint = if diffuse > 0.0 { normal.dot((to_light + view).normalize()).max(0.0).powf(40.0) } else { 0.0 };
+
+    let inner = color(0.15, 1.0, 0.9) * ((0.15 + glow * 1.1) * (0.4 + height * 0.8));
+    body * (0.12 + diffuse * 0.6) + color(0.7, 0.9, 1.0) * (rim * 0.5 + glint) + inner
+}

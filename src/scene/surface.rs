@@ -37,6 +37,7 @@ const ATTEMPTS_PER_OBJECT: usize = 40;
 pub enum Prop {
     Tree,
     Rock,
+    Crystal,
 }
 
 /// Dónde puede ir un objeto según el terreno del planeta.
@@ -46,6 +47,8 @@ pub enum Ground {
     Forest,
     /// Placas de basalto de Ignis, lejos de la lava.
     Crust,
+    /// Grietas grandes del hielo de Kryos.
+    IceCrack,
 }
 
 /// Cuántos objetos de un tipo lleva un planeta y cómo se reparten.
@@ -93,6 +96,7 @@ fn ground_allows(ground: Ground, terrain: &OpenSimplex, p: Vector3) -> bool {
     match ground {
         Ground::Forest => shaders::is_forest(terrain, p),
         Ground::Crust => shaders::is_solid_crust(terrain, p),
+        Ground::IceCrack => shaders::is_on_big_crack(terrain, p),
     }
 }
 
@@ -156,6 +160,7 @@ pub struct PropMeshes {
     trunk: Arc<Mesh>,
     crowns: Vec<Arc<Mesh>>,
     rocks: Vec<Arc<Mesh>>,
+    crystals: Vec<Arc<Mesh>>,
 }
 
 impl PropMeshes {
@@ -164,15 +169,17 @@ impl PropMeshes {
             trunk: Arc::new(shapes::tree_trunk()),
             crowns: (0..3).map(|variant| Arc::new(shapes::tree_crown(variant))).collect(),
             rocks: (0..3).map(|variant| Arc::new(shapes::basalt_rock(variant))).collect(),
+            crystals: (0..4).map(|variant| Arc::new(shapes::ice_crystals(variant))).collect(),
         }
     }
 
-    /// Piezas de un objeto con su material.
-    fn parts(&self, placement: &Placement) -> Vec<(Arc<Mesh>, Material)> {
+    /// Piezas de un objeto con su material. `near` es la cercanía de la nave al planeta.
+    fn parts(&self, placement: &Placement, near: f32) -> Vec<(Arc<Mesh>, Material)> {
         let v = placement.variety;
         let pick = |meshes: &[Arc<Mesh>]| meshes[(v * meshes.len() as f32) as usize % meshes.len()].clone();
         match placement.prop {
             Prop::Rock => vec![(pick(&self.rocks), Material::Basalt)],
+            Prop::Crystal => vec![(pick(&self.crystals), Material::Crystal { glow: near })],
             Prop::Tree => {
                 let crown = pick(&self.crowns);
                 let leaves = mix(color(0.10, 0.36, 0.08), color(0.34, 0.55, 0.10), v);
@@ -217,7 +224,7 @@ pub fn push_objects(
         let model = frame
             * surface_frame(placement.direction, placement.yaw, planet.radius - size * SINK)
             * Mat4::scale(size);
-        for (mesh, material) in meshes.parts(placement) {
+        for (mesh, material) in meshes.parts(placement, near) {
             objects.push(SceneObject { name: planet.name, mesh, model, material });
         }
     }
@@ -266,6 +273,16 @@ mod tests {
         let terrain = OpenSimplex::new(NOISE_SEED);
         for placement in place(jungle().surface, 7) {
             assert!(shaders::is_forest(&terrain, placement.direction));
+        }
+    }
+
+    #[test]
+    fn crystals_grow_from_the_cracks() {
+        let terrain = OpenSimplex::new(NOISE_SEED);
+        let crystals = place(planet("Kryos").surface, 7);
+        assert!(!crystals.is_empty());
+        for placement in crystals {
+            assert!(shaders::is_on_big_crack(&terrain, placement.direction));
         }
     }
 

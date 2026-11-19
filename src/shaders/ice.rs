@@ -5,6 +5,7 @@
 //! las grietas se encienden en ondas cian que salen del punto bajo la nave y se
 //! extienden más cuanto más cerca está; las auroras también se intensifican.
 
+use noise::OpenSimplex;
 use raylib::math::Vector3;
 
 use super::noise_helpers::{fbm, sample, worley};
@@ -48,7 +49,7 @@ fn bioluminescence(distance: f32, time: f32, proximity: f32) -> f32 {
 
 /// Auroras: una franja alrededor de cada polo que ondula con ruido, con rayos
 /// verticales que se mueven. Devuelve su color, sin la intensidad general.
-fn aurora(noise: &noise::OpenSimplex, p: Vector3, time: f32) -> Vector3 {
+fn aurora(noise: &OpenSimplex, p: Vector3, time: f32) -> Vector3 {
     // El ruido se toma en `x`, `z` para que la franja rodee el polo sin costura.
     let pole = p.y.signum();
     let wobble = fbm(noise, Vector3::new(p.x * 3.0 + time * 0.08, pole * 7.0, p.z * 3.0), 2) - 0.5;
@@ -65,6 +66,18 @@ fn aurora(noise: &noise::OpenSimplex, p: Vector3, time: f32) -> Vector3 {
     tint * (band * (0.4 + rays * 0.8))
 }
 
+/// Ancho de la grieta grande en `p`: casi 0 justo encima de ella.
+fn big_crack_edge(noise: &OpenSimplex, p: Vector3) -> f32 {
+    let warp = color(sample(noise, p * 4.0), sample(noise, p * 4.0 + color(9.0, 0.0, 0.0)), 0.0) * 0.06;
+    let (near1, near2, _) = worley((p + warp) * CRACK_SCALE, 70);
+    near2 - near1
+}
+
+/// Si `p` queda sobre una de las grietas grandes.
+pub fn is_on_big_crack(noise: &OpenSimplex, p: Vector3) -> bool {
+    big_crack_edge(noise, p.normalize()) < CRACK_WIDTH
+}
+
 pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) -> Vector3 {
     let noise = &frame.noise;
     let time = frame.time;
@@ -78,9 +91,7 @@ pub fn shade(fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) 
     let ice = ice * (0.9 + snow_grain * 0.15);
 
     // Grietas: el borde entre celdas de Worley, en dos tamaños.
-    let warp = color(sample(noise, p * 4.0), sample(noise, p * 4.0 + color(9.0, 0.0, 0.0)), 0.0) * 0.06;
-    let (near1, near2, _) = worley((p + warp) * CRACK_SCALE, 70);
-    let big = 1.0 - smoothstep(CRACK_WIDTH * 0.3, CRACK_WIDTH, near2 - near1);
+    let big = 1.0 - smoothstep(CRACK_WIDTH * 0.3, CRACK_WIDTH, big_crack_edge(noise, p));
     let (fine1, fine2, _) = worley(p * FINE_CRACK_SCALE, 73);
     let fine = (1.0 - smoothstep(FINE_CRACK_WIDTH * 0.3, FINE_CRACK_WIDTH, fine2 - fine1)) * 0.5;
     let crack = big.max(fine);

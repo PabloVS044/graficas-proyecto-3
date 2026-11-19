@@ -17,6 +17,7 @@ mod volcanic;
 pub mod noise_helpers;
 
 pub use jungle::is_forest;
+pub use ice::is_on_big_crack;
 pub use volcanic::is_solid_crust;
 
 use raylib::math::Vector3;
@@ -48,6 +49,9 @@ pub enum Material {
     Dormant,
     /// Roca de basalto con lava encendida en los poros.
     Basalt,
+    /// Cristal de hielo que brilla por dentro; `glow` de 0 a 1 según la cercanía
+    /// de la nave a su planeta.
+    Crystal { glow: f32 },
     /// Casco desgastado con franjas rojas y motores encendidos.
     /// `throttle` va de 0 (reposo) a 1 (turbo); `heat`, de 0 (frío) a 1
     /// (al rojo vivo, junto al sol o a un planeta volcánico).
@@ -68,6 +72,7 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, obj
         Material::Ice => ice::shade(fragment, frame, object),
         Material::Dormant => dormant::shade(fragment, frame, object),
         Material::Basalt => props::basalt(fragment, frame),
+        Material::Crystal { glow } => props::crystal(fragment, frame, glow),
         Material::Normals => basic::normals(fragment),
     }
 }

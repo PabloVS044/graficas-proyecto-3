@@ -111,7 +111,14 @@ pub const PLANETS: &[PlanetSpec] = &[
         axial_tilt: 0.5,
         material: Material::Ice,
         moons: &[],
-        surface: &[],
+        surface: &[SurfaceSpec {
+            prop: Prop::Crystal,
+            count: 600,
+            ground: Ground::IceCrack,
+            cluster_scale: 2.0,
+            cluster_threshold: 0.3,
+            size: (0.22, 0.45),
+        }],
     },
     PlanetSpec {
         name: "Ignis",
