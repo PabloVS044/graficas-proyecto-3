@@ -11,6 +11,7 @@ mod gas_giant;
 mod ice;
 mod jungle;
 mod ship;
+mod sun;
 mod volcanic;
 pub mod noise_helpers;
 
@@ -23,8 +24,9 @@ use crate::render::{Fragment, FrameContext, ObjectContext};
 pub enum Material {
     /// Difuso (Lambert) iluminado por el sol.
     Lambert { albedo: Vector3 },
-    /// Emite su propio color, no recibe luz. Provisional para el sol.
-    Emissive { color: Vector3 },
+    /// Plasma del sol: hierve, tiene manchas y filamentos que se encienden con
+    /// la nave cerca. Emite su propio color.
+    Sun,
     /// Planeta de selva con mar, ríos, roca, nubes con sombra, reflejo en el
     /// agua y luces de noche.
     Jungle,
@@ -52,7 +54,7 @@ pub enum Material {
 pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, object: &ObjectContext) -> Vector3 {
     match *material {
         Material::Lambert { albedo } => basic::lambert(albedo, fragment, frame),
-        Material::Emissive { color } => color,
+        Material::Sun => sun::shade(fragment, frame, object),
         Material::Ship { throttle, heat } => ship::shade(fragment, frame, throttle, heat),
         Material::Jungle => jungle::shade(fragment, frame, object),
         Material::Volcanic => volcanic::shade(fragment, frame, object),

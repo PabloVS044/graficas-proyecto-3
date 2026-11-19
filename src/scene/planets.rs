@@ -49,7 +49,7 @@ pub struct MoonSpec {
     pub material: Material,
 }
 
-pub const SUN: SunSpec = SunSpec { radius: 12.0, material: Material::Emissive { color: color(1.0, 0.75, 0.3) } };
+pub const SUN: SunSpec = SunSpec { radius: 12.0, material: Material::Sun };
 
 /// Ordenados del más cercano al sol al más lejano.
 pub const PLANETS: &[PlanetSpec] = &[
