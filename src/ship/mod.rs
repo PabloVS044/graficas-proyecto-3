@@ -89,6 +89,12 @@ impl Ship {
         self.velocity.length()
     }
 
+    /// Cada cuerpo jala a la nave hacia su centro. Se aplica antes de `step`, y
+    /// solo en vuelo libre.
+    pub fn apply_gravity(&mut self, colliders: &[Collider], dt: f32) {
+        self.velocity += gravity_at(self.position, colliders) * dt;
+    }
+
     /// Avanza la nave `dt` segundos.
     pub fn step(&mut self, input: &ShipInput, colliders: &[Collider], dt: f32) {
         self.turn(input, dt);
@@ -171,11 +177,55 @@ impl Ship {
     }
 }
 
+/// Aceleración de la gravedad en `position`: la suma de la de cada cuerpo. En la
+/// superficie vale `surface_gravity` y cae con el cuadrado de la distancia al
+/// centro (`g * (R / d)²`, la ley de Newton escrita sin la constante ni la masa).
+pub fn gravity_at(position: Vector3, colliders: &[Collider]) -> Vector3 {
+    colliders.iter().fold(Vector3::zero(), |total, body| {
+        let offset = body.center - position;
+        let distance = offset.length();
+        if distance == 0.0 {
+            return total;
+        }
+        // Dentro del cuerpo no crece más; la colisión de todas formas no deja entrar.
+        let falloff = body.radius / distance.max(body.radius);
+        total + offset * (body.surface_gravity * falloff * falloff / distance)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const DT: f32 = 1.0 / 120.0;
+
+    fn planet(center: Vector3, radius: f32, velocity: Vector3) -> Collider {
+        Collider { name: "prueba", center, radius, velocity, surface_gravity: radius * crate::scene::GRAVITY_PER_RADIUS }
+    }
+
+    #[test]
+    fn gravity_pulls_towards_the_planet_and_fades_with_distance() {
+        let body = planet(Vector3::new(0.0, 0.0, 0.0), 6.0, Vector3::zero());
+        let at_surface = gravity_at(Vector3::new(6.0, 0.0, 0.0), &[body]);
+        let twice_as_far = gravity_at(Vector3::new(12.0, 0.0, 0.0), &[body]);
+
+        assert!(at_surface.x < 0.0, "jala hacia el centro");
+        assert!((at_surface.length() - body.surface_gravity).abs() < 1e-4);
+        assert!((twice_as_far.length() - body.surface_gravity / 4.0).abs() < 1e-4, "al doble de distancia, la cuarta parte");
+    }
+
+    /// Una nave que pasa de lado sin motor se desvía hacia el planeta.
+    #[test]
+    fn gravity_bends_the_trajectory() {
+        let body = planet(Vector3::new(10.0, 0.0, 30.0), 6.0, Vector3::zero());
+        let mut ship = ship();
+        ship.velocity = Vector3::new(0.0, 0.0, 20.0);
+        for _ in 0..(2.0 / DT) as usize {
+            ship.apply_gravity(&[body], DT);
+            ship.step(&ShipInput::default(), &[body], DT);
+        }
+        assert!(ship.velocity.x > 1.0, "la velocidad gira hacia el planeta");
+    }
 
     fn ship() -> Ship {
         Ship::new(Vector3::zero(), Quat::IDENTITY)
@@ -251,7 +301,7 @@ mod tests {
 
     #[test]
     fn cannot_go_through_a_planet() {
-        let planet = Collider { center: Vector3::new(0.0, 0.0, 30.0), radius: 10.0, velocity: Vector3::zero() };
+        let planet = planet(Vector3::new(0.0, 0.0, 30.0), 10.0, Vector3::zero());
         let mut ship = ship();
         for _ in 0..(10.0 / DT) as usize {
             ship.step(&FORWARD, &[planet], DT);
@@ -264,7 +314,7 @@ mod tests {
     /// Un planeta que viene hacia la nave la empuja con él.
     #[test]
     fn moving_planet_pushes_the_ship() {
-        let planet = Collider { center: Vector3::new(0.0, 0.0, 10.0), radius: 9.5, velocity: Vector3::new(0.0, 0.0, -3.0) };
+        let planet = planet(Vector3::new(0.0, 0.0, 10.0), 9.5, Vector3::new(0.0, 0.0, -3.0));
         let mut ship = ship();
         ship.step(&ShipInput::default(), &[planet], DT);
         assert!(ship.velocity.z <= -3.0 + 1e-3);

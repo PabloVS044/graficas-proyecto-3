@@ -24,6 +24,8 @@ pub struct Simulation {
     pub paused: bool,
     /// Un lugar por planeta de `PLANETS`: si la nave ya llegó cerca de él.
     pub discovered: Vec<bool>,
+    /// Si los cuerpos atraen a la nave.
+    pub gravity: bool,
     accumulator: f32,
 }
 
@@ -39,6 +41,7 @@ impl Simulation {
             camera: ChaseCamera::behind(&ship),
             paused: false,
             discovered: vec![false; PLANETS.len()],
+            gravity: true,
             accumulator: 0.0,
         }
     }
@@ -59,6 +62,9 @@ impl Simulation {
         while self.accumulator >= STEP {
             self.time += STEP;
             let colliders = scene.colliders(self.time);
+            if self.gravity {
+                self.ship.apply_gravity(&colliders, STEP);
+            }
             self.ship.step(input, &colliders, STEP);
             self.camera.step(&self.ship, &colliders, STEP);
             self.accumulator -= STEP;

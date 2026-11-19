@@ -42,12 +42,20 @@ pub struct SceneObject {
 /// Esfera sólida que la nave no puede atravesar.
 #[derive(Clone, Copy, Debug)]
 pub struct Collider {
+    pub name: &'static str,
     pub center: Vector3,
     pub radius: f32,
     /// Velocidad del cuerpo: un planeta se mueve en su órbita, y la colisión se
     /// resuelve con la velocidad relativa.
     pub velocity: Vector3,
+    /// Aceleración de la gravedad en la superficie. Más lejos cae con el
+    /// cuadrado de la distancia al centro.
+    pub surface_gravity: f32,
 }
+
+/// Gravedad en la superficie por cada unidad de radio. Con la misma densidad,
+/// la gravedad en la superficie crece con el radio: un planeta grande jala más.
+pub const GRAVITY_PER_RADIUS: f32 = 0.65;
 
 /// Escala que deja a la malla con el radio pedido, centrada en el origen del objeto.
 pub fn fit_to_radius(mesh: &Mesh, radius: f32) -> Mat4 {

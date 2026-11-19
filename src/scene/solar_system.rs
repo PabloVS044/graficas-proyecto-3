@@ -6,7 +6,7 @@ use std::sync::Arc;
 use raylib::math::Vector3;
 
 use super::planets::{MoonSpec, PLANETS, PlanetSpec, SUN};
-use super::{Collider, SceneObject, fit_to_radius, proximity};
+use super::{Collider, GRAVITY_PER_RADIUS, SceneObject, fit_to_radius, proximity};
 use crate::config::{RENDER_HEIGHT, SHIP_MODEL_PATH};
 use crate::render::Camera;
 use crate::math::{Mat4, Quat};
@@ -115,17 +115,19 @@ impl SolarSystem {
     pub fn colliders(&self, time: f32) -> Vec<Collider> {
         // Velocidad por diferencia entre dos instantes cercanos.
         const H: f32 = 0.01;
-        let collider = |radius: f32, center: &dyn Fn(f32) -> Vector3| Collider {
+        let collider = |name: &'static str, radius: f32, center: &dyn Fn(f32) -> Vector3| Collider {
+            name,
             center: center(time),
             radius,
             velocity: (center(time) - center(time - H)) * (1.0 / H),
+            surface_gravity: radius * GRAVITY_PER_RADIUS,
         };
 
-        let mut colliders = vec![Collider { center: self.light_position(), radius: SUN.radius, velocity: Vector3::zero() }];
+        let mut colliders = vec![collider("Sol", SUN.radius, &|_| self.light_position())];
         for planet in PLANETS {
-            colliders.push(collider(planet.radius, &|t| self.planet_center(planet, t)));
+            colliders.push(collider(planet.name, planet.radius, &|t| self.planet_center(planet, t)));
             for moon in planet.moons {
-                colliders.push(collider(moon.radius, &|t| self.planet_center(planet, t) + moon_offset(moon, t)));
+                colliders.push(collider(moon.name, moon.radius, &|t| self.planet_center(planet, t) + moon_offset(moon, t)));
             }
         }
         colliders

@@ -133,6 +133,9 @@ fn run_window(world: &World) {
         if window.is_key_pressed(KeyboardKey::KEY_L) {
             options.detail = if options.detail == Detail::ByDistance { Detail::Max } else { Detail::ByDistance };
         }
+        if window.is_key_pressed(KeyboardKey::KEY_G) {
+            simulation.gravity = !simulation.gravity;
+        }
         if window.is_key_pressed(KeyboardKey::KEY_F) {
             options.culling = !options.culling;
         }
@@ -169,7 +172,7 @@ fn run_window(world: &World) {
 
         let mut drawing = window.begin_drawing(&thread);
         framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
-        draw_hud(&mut drawing, &stats, render_ms, &simulation, view, pitch_control, options);
+        draw_hud(&mut drawing, &world.scene, &stats, render_ms, &simulation, view, pitch_control, options);
         draw_exploration(&mut drawing, &world.scene, &simulation);
     }
 }
@@ -206,8 +209,10 @@ fn draw_exploration(drawing: &mut RaylibDrawHandle, scene: &SolarSystem, simulat
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_hud(
     drawing: &mut RaylibDrawHandle,
+    scene: &SolarSystem,
     stats: &RenderStats,
     render_ms: f32,
     simulation: &Simulation,
@@ -228,12 +233,27 @@ fn draw_hud(
     for (row, line) in options.lines().iter().enumerate() {
         drawing.draw_text(line, 10, 182 + row as i32 * 24, SIZE, Color::LIME);
     }
+    let gravity = if simulation.gravity {
+        let colliders = scene.colliders(simulation.time);
+        let position = simulation.ship.position;
+        let pull = ship::gravity_at(position, &colliders).length();
+        // El cuerpo que más jala, para saber hacia dónde se desvía la nave.
+        let strongest = colliders
+            .iter()
+            .map(|body| (body.name, ship::gravity_at(position, std::slice::from_ref(body)).length()))
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map_or("", |(name, _)| name);
+        format!("gravedad: {pull:.2} u/s2, sobre todo {strongest} (G apaga)")
+    } else {
+        "gravedad: apagada (G cambia)".to_string()
+    };
+    drawing.draw_text(&gravity, 10, 230, SIZE, Color::SKYBLUE);
     if simulation.paused {
-        drawing.draw_text("PAUSA", 10, 254, SIZE, Color::YELLOW);
+        drawing.draw_text("PAUSA", 10, 278, SIZE, Color::YELLOW);
     }
 
     let controls = match view {
-        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   C: inspeccionar   R: reiniciar   Espacio: pausa",
+        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   G: gravedad   C: inspeccionar   R: reiniciar   Espacio: pausa",
         View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   Espacio: pausa",
     };
     drawing.draw_text(controls, 10, window_height - 30, SIZE, Color::LIGHTGRAY);
