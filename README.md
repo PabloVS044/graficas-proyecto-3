@@ -67,6 +67,8 @@ $env:BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files (x86)/Microsoft Visual Stud
 | `C` | Inspeccionar: orbitar alrededor de la nave con flechas y rueda; otra vez `C` para volver |
 | `R` | Volver la nave al inicio |
 | Espacio | Pausar la simulación |
+| `L` | Niveles de detalle: por distancia o siempre el máximo |
+| `F` | Descarte de objetos fuera de la vista: activo o apagado |
 
 La aceleración y los giros son progresivos. La física avanza en pasos fijos de 1/120 s,
 así que la nave responde igual sin importar cuántos cuadros por segundo dibuje el equipo.
@@ -79,7 +81,7 @@ src/
   main.rs            ventana, bucle, --benchmark y --screenshot
   config.rs          resolución, campo de visión, planos, semilla, rutas
   math/              Mat4 y Quat propios
-  mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ
+  mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ, icosfera
   render/            cámara, contexto del cuadro, pipeline, rasterizador,
                      framebuffer, fondo, contadores
   scene/             SceneObject, Collider y el sistema solar
@@ -89,7 +91,7 @@ src/
   shaders/           Material, shaders y funciones de ruido
 assets/
   nave_graficas.obj  la nave (Blender, 39 168 triángulos)
-  sphere.obj         esfera provisional, la reemplaza la icosfera generada
+  sphere.obj         esfera para las pruebas del cargador OBJ; la escena usa la icosfera
 ```
 
 ## Convenciones
@@ -149,3 +151,26 @@ Ryzen 7 8845HS, 800×450, `--benchmark` (varía según el estado del equipo):
 | Inicio | 5.0 |
 | Junto a la superficie de Jungla | 22.5 |
 | Junto al sol | 8.5 |
+
+## Esferas, niveles de detalle y descarte
+
+- **Icosfera** (`src/mesh/icosphere.rs`): el sol, los planetas y la luna son esferas
+  generadas antes de rasterizar. Se parte de un icosaedro y cada nivel parte cada
+  triángulo en cuatro, empujando los puntos medios a la superficie: 20, 80, 320, 1 280,
+  5 120 y 20 480 triángulos.
+- **Niveles de detalle** (`SolarSystem::sphere_level`): cada cuadro, cada esfera usa el
+  nivel con el que sus triángulos miden unos 6 píxeles en pantalla. Un planeta lejano
+  usa 80 triángulos; uno que llena la pantalla, 20 480.
+- **Descarte** (`src/render/frustum.rs`): antes de transformar los vértices de un
+  objeto, se prueba su esfera envolvente contra los seis planos de la vista. Si queda
+  fuera, el objeto se salta entero.
+
+El HUD muestra los contadores de objetos y triángulos, y `L` y `F` apagan cada
+optimización para compararlas en vivo. `--benchmark` mide cada pose con y sin ellas.
+Triángulos enviados al pipeline:
+
+| Pose de la nave | Con niveles de detalle y descarte | Sin optimizar |
+|---|---:|---:|
+| Inicio | 41 248 (6 de 8 objetos) | 182 528 |
+| Junto a la superficie de Jungla | 66 208 | 182 528 |
+| Junto al sol | 62 368 | 182 528 |
