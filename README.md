@@ -21,9 +21,9 @@ con una semilla. El sonido se sintetiza en código.
 
 | Integrante | Contribución |
 |---|---|
-| _Nombre_ (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. Modelo de la nave Graficas y menú de selección de naves. |
-| _Nombre_ (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. Modelo de la nave Birdship. |
-| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. Modelo de la nave Nave. |
+| _Nombre_ (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. Modelo de la nave Centella y menú de selección de naves. |
+| _Nombre_ (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. Modelo de la nave Condor. |
+| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. Modelo de la nave Tridente. |
 
 ## Características que solicitamos evaluar
 
@@ -166,15 +166,15 @@ encendidos. ← y → cambian de nave, `Enter` despega y `Tab`, en vuelo, vuelve
 
 | Nave | Modelo | Triángulos | Pintura | Toberas |
 |---|---|---:|---|---|
-| Graficas | `assets/nave_graficas.obj` | 39 168 | Blanco desgastado con franjas rojas (`ShipPaint::Classic`) | Puntas de las alas y cola |
-| Birdship | `assets/birdship.obj` | 8 960 | Gris azulado con acentos naranja, motores azules | Bloque de motores bajo la cola |
-| Nave | `assets/nave.obj` | 802 | Grafito con acentos amarillos, motores violeta | Motor central y cápsulas laterales |
+| Centella | `assets/nave_graficas.obj` | 39 168 | Blanco desgastado con franjas rojas (`ShipPaint::Classic`) | Puntas de las alas y cola |
+| Condor | `assets/birdship.obj` | 8 960 | Gris azulado con acentos naranja, motores azules | Bloque de motores bajo la cola |
+| Tridente | `assets/nave.obj` | 802 | Grafito con acentos amarillos, motores violeta | Motor central y cápsulas laterales |
 
 - **Tabla de naves** (`src/ship/models.rs`): nombre, autor, archivo, toberas y pintura de
   cada una. La física, la cámara y el tamaño en el mundo son iguales para todas: cada
   modelo se escala para que quepa en la misma esfera (`SHIP_RADIUS`).
 - **Pintura** (`src/shaders/ship.rs`): la iluminación y el calor del casco son comunes.
-  `ShipPaint::Classic` está ajustada a la forma de la nave Graficas; `ShipPaint::Livery`
+  `ShipPaint::Classic` está ajustada a la forma de la Centella; `ShipPaint::Livery`
   sirve para cualquier modelo y se configura con colores y unas pocas medidas (ancho de
   la franja del lomo, dónde empiezan las puntas de las alas y detrás de qué `z` están las
   toberas).
@@ -230,9 +230,9 @@ src/
   simulation.rs      avance del mundo en pasos fijos
   shaders/           Material, shaders y funciones de ruido
 assets/
-  nave_graficas.obj  nave Graficas (Blender, 39 168 triángulos)
-  birdship.obj       nave Birdship (Blender, 8 960 triángulos)
-  nave.obj           nave Nave (Blender, 802 triángulos)
+  nave_graficas.obj  nave Centella (Blender, 39 168 triángulos)
+  birdship.obj       nave Condor (Blender, 8 960 triángulos)
+  nave.obj           nave Tridente (Blender, 802 triángulos)
   sphere.obj         esfera para las pruebas del cargador OBJ; la escena usa la icosfera
 ```
 

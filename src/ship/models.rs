@@ -40,7 +40,7 @@ const fn point(x: f32, y: f32, z: f32) -> Vector3 {
 
 pub const SHIPS: &[ShipSpec] = &[
     ShipSpec {
-        name: "Graficas",
+        name: "Centella",
         author: "Pablo",
         description: "Caza de alas en X con canones en las puntas",
         path: "assets/nave_graficas.obj",
@@ -56,7 +56,7 @@ pub const SHIPS: &[ShipSpec] = &[
         paint: ShipPaint::Classic,
     },
     ShipSpec {
-        name: "Birdship",
+        name: "Condor",
         author: "Jonathan",
         description: "Nave compacta con forma de ave y motores bajo la cola",
         path: "assets/birdship.obj",
@@ -81,7 +81,7 @@ pub const SHIPS: &[ShipSpec] = &[
         }),
     },
     ShipSpec {
-        name: "Nave",
+        name: "Tridente",
         author: "Ivana",
         description: "Ala delta ligera, de pocos poligonos",
         path: "assets/nave.obj",
