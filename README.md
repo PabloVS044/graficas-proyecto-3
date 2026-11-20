@@ -174,7 +174,7 @@ encendidos. ← y → cambian de nave, `Enter` despega y `Tab`, en vuelo, vuelve
   cada una. La física, la cámara y el tamaño en el mundo son iguales para todas: cada
   modelo se escala para que quepa en la misma esfera (`SHIP_RADIUS`).
 - **Pintura** (`src/shaders/ship.rs`): la iluminación y el calor del casco son comunes.
-  `ShipPaint::Classic` está ajustada a la forma de la Raptor; `ShipPaint::Livery`
+  `ShipPaint::Classic` está ajustada a la forma de la nave Raptor; `ShipPaint::Livery`
   sirve para cualquier modelo y se configura con colores y unas pocas medidas (ancho de
   la franja del lomo, dónde empiezan las puntas de las alas y detrás de qué `z` están las
   toberas).
