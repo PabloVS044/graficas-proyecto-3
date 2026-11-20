@@ -78,6 +78,28 @@ impl Options {
     }
 }
 
+/// Cuánto muestra el HUD. Se cambia con `H`; menos texto deja ver mejor la escena,
+/// por ejemplo para grabar.
+#[derive(Clone, Copy, PartialEq)]
+enum Hud {
+    /// Contadores del renderer, opciones y estado de la nave.
+    Full,
+    /// Solo velocidad, modo de vuelo y controles.
+    Minimal,
+    /// Nada más que el nombre del planeta cercano y los avisos.
+    Hidden,
+}
+
+impl Hud {
+    fn next(self) -> Hud {
+        match self {
+            Hud::Full => Hud::Minimal,
+            Hud::Minimal => Hud::Hidden,
+            Hud::Hidden => Hud::Full,
+        }
+    }
+}
+
 /// Qué cámara se usa para mirar.
 #[derive(Clone, Copy, PartialEq)]
 enum View {
@@ -120,6 +142,7 @@ fn run_window(world: &mut World) {
     let mut inspect = OrbitController { distance: 10.0, ..OrbitController::new() };
     let mut pitch_control = PitchControl::Aircraft;
     let mut options = Options::DEFAULT;
+    let mut hud = Hud::Full;
 
     while !window.window_should_close() {
         let frame_time = window.get_frame_time();
@@ -142,6 +165,9 @@ fn run_window(world: &mut World) {
         if window.is_key_pressed(KeyboardKey::KEY_N) {
             let seed = world.scene.surface_seed().wrapping_add(1);
             world.scene.set_surface_seed(seed);
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_H) {
+            hud = hud.next();
         }
         if window.is_key_pressed(KeyboardKey::KEY_C) {
             view = if view == View::Chase { View::Inspect } else { View::Chase };
@@ -179,7 +205,11 @@ fn run_window(world: &mut World) {
 
         let mut drawing = window.begin_drawing(&thread);
         framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
-        draw_hud(&mut drawing, &world.scene, &stats, render_ms, &simulation, view, pitch_control, options);
+        match hud {
+            Hud::Full => draw_hud(&mut drawing, &world.scene, &stats, render_ms, &simulation, view, pitch_control, options),
+            Hud::Minimal => draw_minimal_hud(&mut drawing, &world.scene, &simulation, view),
+            Hud::Hidden => {}
+        }
         draw_exploration(&mut drawing, &world.scene, &simulation);
     }
 }
@@ -256,24 +286,44 @@ fn draw_hud(
     };
     drawing.draw_text(&gravity, 10, 230, SIZE, Color::SKYBLUE);
 
+    draw_mode(drawing, scene, simulation, 254);
+    drawing.draw_text(&format!("semilla de superficie: {} (N cambia)", scene.surface_seed()), 10, 278, SIZE, Color::LIME);
+    if simulation.paused {
+        drawing.draw_text("PAUSA", 10, 302, SIZE, Color::YELLOW);
+    }
+    draw_controls(drawing, simulation, view, window_height);
+}
+
+/// HUD reducido: velocidad, modo de vuelo y controles.
+fn draw_minimal_hud(drawing: &mut RaylibDrawHandle, scene: &SolarSystem, simulation: &Simulation, view: View) {
+    let window_height = (RENDER_HEIGHT * WINDOW_SCALE) as i32;
+    drawing.draw_text(&format!("velocidad: {:.1}", simulation.ship.speed()), 10, 10, 20, Color::SKYBLUE);
+    draw_mode(drawing, scene, simulation, 34);
+    if simulation.paused {
+        drawing.draw_text("PAUSA", 10, 58, 20, Color::YELLOW);
+    }
+    draw_controls(drawing, simulation, view, window_height);
+}
+
+/// Línea con el modo de vuelo y cómo cambiarlo.
+fn draw_mode(drawing: &mut RaylibDrawHandle, scene: &SolarSystem, simulation: &Simulation, y: i32) {
     let mode = match (simulation.orbit, simulation.orbit_candidate(scene)) {
         (Some((_, name)), _) => format!("modo: orbitando {name} (O vuelve al vuelo libre)"),
         (None, Some((_, name))) => format!("modo: vuelo libre (O para orbitar {name})"),
         (None, None) => "modo: vuelo libre (acercate a un planeta para orbitarlo)".to_string(),
     };
-    let mode_color = if simulation.orbit.is_some() { Color::GOLD } else { Color::SKYBLUE };
-    drawing.draw_text(&mode, 10, 254, SIZE, mode_color);
-    drawing.draw_text(&format!("semilla de superficie: {} (N cambia)", scene.surface_seed()), 10, 278, SIZE, Color::LIME);
-    if simulation.paused {
-        drawing.draw_text("PAUSA", 10, 302, SIZE, Color::YELLOW);
-    }
+    let color = if simulation.orbit.is_some() { Color::GOLD } else { Color::SKYBLUE };
+    drawing.draw_text(&mode, 10, y, 20, color);
+}
 
+/// Controles disponibles, abajo de la pantalla.
+fn draw_controls(drawing: &mut RaylibDrawHandle, simulation: &Simulation, view: View, window_height: i32) {
     let controls = match view {
-        View::Chase if simulation.orbit.is_some() => "W/S: acelerar/frenar   Izq/Der: rumbo   Arriba/Abajo: altura (I invierte)   Shift: turbo   O: vuelo libre   C: inspeccionar   Espacio: pausa",
-        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   N: semilla   C: inspeccionar   R: reiniciar   Espacio: pausa",
-        View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   Espacio: pausa",
+        View::Chase if simulation.orbit.is_some() => "W/S: acelerar/frenar   Izq/Der: rumbo   Arriba/Abajo: altura   Shift: turbo   O: vuelo libre   H: HUD   Espacio: pausa",
+        View::Chase => "W/S: acelerar   Flechas: dirigir   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   N: semilla   C: inspeccionar   H: HUD",
+        View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   H: HUD   Espacio: pausa",
     };
-    drawing.draw_text(controls, 10, window_height - 30, SIZE, Color::LIGHTGRAY);
+    drawing.draw_text(controls, 10, window_height - 30, 20, Color::LIGHTGRAY);
 }
 
 /// Poses fijas de la nave para medir y capturar siempre lo mismo.
