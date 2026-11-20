@@ -10,6 +10,7 @@ mod dormant;
 mod gas_giant;
 mod ice;
 mod jungle;
+mod moon;
 mod props;
 mod ship;
 mod sun;
@@ -47,6 +48,8 @@ pub enum Material {
     /// Roca con una red hexagonal tallada que se enciende, hexágono por
     /// hexágono, desde el punto bajo la nave.
     Dormant,
+    /// Luna de roca gris con mares oscuros y cráteres de borde levantado.
+    Moon,
     /// Roca de basalto con lava encendida en los poros.
     Basalt,
     /// Cristal de hielo que brilla por dentro; `glow` de 0 a 1 según la cercanía
@@ -78,6 +81,7 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, obj
         Material::GasGiant => gas_giant::shade(fragment, frame, object),
         Material::Ice => ice::shade(fragment, frame, object),
         Material::Dormant => dormant::shade(fragment, frame, object),
+        Material::Moon => moon::shade(fragment, frame, object),
         Material::Basalt => props::basalt(fragment, frame),
         Material::Foliage { albedo, ground_up } => props::foliage(fragment, frame, albedo, ground_up),
         Material::Thatch => props::thatch(fragment, frame),

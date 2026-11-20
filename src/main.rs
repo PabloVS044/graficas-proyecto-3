@@ -1,3 +1,4 @@
+mod audio;
 mod config;
 #[allow(dead_code, reason = "API pública que todavía no usa la escena de prueba")]
 mod math;
@@ -10,7 +11,9 @@ mod simulation;
 
 use std::time::Instant;
 
+use audio::{Cue, EngineParams, Soundscape};
 use noise::OpenSimplex;
+use raylib::core::audio::RaylibAudio;
 use raylib::prelude::*;
 
 use config::{FAR_PLANE, FIELD_OF_VIEW, NEAR_PLANE, NOISE_SEED, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_SCALE};
@@ -78,6 +81,28 @@ impl Options {
     }
 }
 
+/// Cuánto muestra el HUD. Se cambia con `H`; menos texto deja ver mejor la escena,
+/// por ejemplo para grabar.
+#[derive(Clone, Copy, PartialEq)]
+enum Hud {
+    /// Contadores del renderer, opciones y estado de la nave.
+    Full,
+    /// Solo velocidad, modo de vuelo y controles.
+    Minimal,
+    /// Nada más que el nombre del planeta cercano y los avisos.
+    Hidden,
+}
+
+impl Hud {
+    fn next(self) -> Hud {
+        match self {
+            Hud::Full => Hud::Minimal,
+            Hud::Minimal => Hud::Hidden,
+            Hud::Hidden => Hud::Full,
+        }
+    }
+}
+
 /// Qué cámara se usa para mirar.
 #[derive(Clone, Copy, PartialEq)]
 enum View {
@@ -120,9 +145,25 @@ fn run_window(world: &mut World) {
     let mut inspect = OrbitController { distance: 10.0, ..OrbitController::new() };
     let mut pitch_control = PitchControl::Aircraft;
     let mut options = Options::DEFAULT;
+    let mut hud = Hud::Full;
+
+    // Sin dispositivo de audio el juego sigue, en silencio.
+    let audio = RaylibAudio::init_audio_device().ok();
+    let mut sound = audio.as_ref().and_then(|audio| {
+        Soundscape::load(audio).map_err(|err| eprintln!("Sin sonido: {err}")).ok()
+    });
 
     while !window.window_should_close() {
         let frame_time = window.get_frame_time();
+
+        // Teclas que cambian una opción: suenan con un clic.
+        let toggles = [KeyboardKey::KEY_I, KeyboardKey::KEY_L, KeyboardKey::KEY_G, KeyboardKey::KEY_F, KeyboardKey::KEY_N, KeyboardKey::KEY_H, KeyboardKey::KEY_C];
+        if toggles.iter().any(|key| window.is_key_pressed(*key)) {
+            sound.iter().for_each(|sound| sound.play(Cue::Toggle));
+        }
+        if window.is_key_pressed(KeyboardKey::KEY_M) {
+            sound.iter_mut().for_each(Soundscape::toggle_mute);
+        }
 
         if window.is_key_pressed(KeyboardKey::KEY_SPACE) {
             simulation.paused = !simulation.paused;
@@ -143,6 +184,9 @@ fn run_window(world: &mut World) {
             let seed = world.scene.surface_seed().wrapping_add(1);
             world.scene.set_surface_seed(seed);
         }
+        if window.is_key_pressed(KeyboardKey::KEY_H) {
+            hud = hud.next();
+        }
         if window.is_key_pressed(KeyboardKey::KEY_C) {
             view = if view == View::Chase { View::Inspect } else { View::Chase };
         }
@@ -162,7 +206,30 @@ fn run_window(world: &mut World) {
                 ShipInput::default()
             }
         };
+        let discovered_before = simulation.discovered.iter().filter(|found| **found).count();
+        let orbiting_before = simulation.orbit.is_some();
         simulation.advance(&world.scene, &input, frame_time);
+
+        if let Some(sound) = &mut sound {
+            if simulation.discovered.iter().filter(|found| **found).count() > discovered_before {
+                sound.play(Cue::Discovery);
+            }
+            match (orbiting_before, simulation.orbit.is_some()) {
+                (false, true) => sound.play(Cue::OrbitOn),
+                (true, false) => sound.play(Cue::OrbitOff),
+                _ => {}
+            }
+            // En pausa el motor se calla, pero el espacio sigue sonando.
+            let running = !simulation.paused;
+            sound.update(
+                EngineParams {
+                    throttle: if running { simulation.ship.throttle } else { 0.0 },
+                    boost: (running && input.boost && input.thrust > 0.0) as u8 as f32,
+                    heat: if running { world.scene.ship_heat(simulation.time, simulation.ship.position) } else { 0.0 },
+                },
+                frame_time,
+            );
+        }
 
         let camera = match view {
             View::Chase => simulation.camera.camera(&simulation.ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE),
@@ -179,8 +246,16 @@ fn run_window(world: &mut World) {
 
         let mut drawing = window.begin_drawing(&thread);
         framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
-        draw_hud(&mut drawing, &world.scene, &stats, render_ms, &simulation, view, pitch_control, options);
+        match hud {
+            Hud::Full => draw_hud(&mut drawing, &world.scene, &stats, render_ms, &simulation, view, pitch_control, options),
+            Hud::Minimal => draw_minimal_hud(&mut drawing, &world.scene, &simulation, view),
+            Hud::Hidden => {}
+        }
         draw_exploration(&mut drawing, &world.scene, &simulation);
+        if sound.as_ref().is_some_and(Soundscape::muted) {
+            let width = (RENDER_WIDTH * WINDOW_SCALE) as i32;
+            drawing.draw_text("SILENCIO (M)", width - 160, 34, 20, Color::GRAY);
+        }
     }
 }
 
@@ -256,24 +331,44 @@ fn draw_hud(
     };
     drawing.draw_text(&gravity, 10, 230, SIZE, Color::SKYBLUE);
 
+    draw_mode(drawing, scene, simulation, 254);
+    drawing.draw_text(&format!("semilla de superficie: {} (N cambia)", scene.surface_seed()), 10, 278, SIZE, Color::LIME);
+    if simulation.paused {
+        drawing.draw_text("PAUSA", 10, 302, SIZE, Color::YELLOW);
+    }
+    draw_controls(drawing, simulation, view, window_height);
+}
+
+/// HUD reducido: velocidad, modo de vuelo y controles.
+fn draw_minimal_hud(drawing: &mut RaylibDrawHandle, scene: &SolarSystem, simulation: &Simulation, view: View) {
+    let window_height = (RENDER_HEIGHT * WINDOW_SCALE) as i32;
+    drawing.draw_text(&format!("velocidad: {:.1}", simulation.ship.speed()), 10, 10, 20, Color::SKYBLUE);
+    draw_mode(drawing, scene, simulation, 34);
+    if simulation.paused {
+        drawing.draw_text("PAUSA", 10, 58, 20, Color::YELLOW);
+    }
+    draw_controls(drawing, simulation, view, window_height);
+}
+
+/// Línea con el modo de vuelo y cómo cambiarlo.
+fn draw_mode(drawing: &mut RaylibDrawHandle, scene: &SolarSystem, simulation: &Simulation, y: i32) {
     let mode = match (simulation.orbit, simulation.orbit_candidate(scene)) {
         (Some((_, name)), _) => format!("modo: orbitando {name} (O vuelve al vuelo libre)"),
         (None, Some((_, name))) => format!("modo: vuelo libre (O para orbitar {name})"),
         (None, None) => "modo: vuelo libre (acercate a un planeta para orbitarlo)".to_string(),
     };
-    let mode_color = if simulation.orbit.is_some() { Color::GOLD } else { Color::SKYBLUE };
-    drawing.draw_text(&mode, 10, 254, SIZE, mode_color);
-    drawing.draw_text(&format!("semilla de superficie: {} (N cambia)", scene.surface_seed()), 10, 278, SIZE, Color::LIME);
-    if simulation.paused {
-        drawing.draw_text("PAUSA", 10, 302, SIZE, Color::YELLOW);
-    }
+    let color = if simulation.orbit.is_some() { Color::GOLD } else { Color::SKYBLUE };
+    drawing.draw_text(&mode, 10, y, 20, color);
+}
 
+/// Controles disponibles, abajo de la pantalla.
+fn draw_controls(drawing: &mut RaylibDrawHandle, simulation: &Simulation, view: View, window_height: i32) {
     let controls = match view {
-        View::Chase if simulation.orbit.is_some() => "W/S: acelerar/frenar   Izq/Der: rumbo   Arriba/Abajo: altura (I invierte)   Shift: turbo   O: vuelo libre   C: inspeccionar   Espacio: pausa",
-        View::Chase => "W/S: acelerar/frenar   Flechas: dirigir (I invierte)   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   N: semilla   C: inspeccionar   R: reiniciar   Espacio: pausa",
-        View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   Espacio: pausa",
+        View::Chase if simulation.orbit.is_some() => "W/S: acelerar/frenar   Izq/Der: rumbo   Arriba/Abajo: altura   Shift: turbo   O: vuelo libre   H: HUD   Espacio: pausa",
+        View::Chase => "W/S: acelerar   Flechas: dirigir   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   N: semilla   H: HUD   M: sonido",
+        View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   H: HUD   Espacio: pausa",
     };
-    drawing.draw_text(controls, 10, window_height - 30, SIZE, Color::LIGHTGRAY);
+    drawing.draw_text(controls, 10, window_height - 30, 20, Color::LIGHTGRAY);
 }
 
 /// Poses fijas de la nave para medir y capturar siempre lo mismo.
