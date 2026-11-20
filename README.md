@@ -23,7 +23,7 @@ con una semilla. El sonido se sintetiza en código.
 |---|---|
 | _Nombre_ (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. Modelo de la nave Raptor y menú de selección de naves. |
 | _Nombre_ (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. Modelo de la nave Comet. |
-| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. Modelo de la nave Trident. |
+| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. Modelo de la nave Stinger. |
 
 ## Características que solicitamos evaluar
 
@@ -168,7 +168,7 @@ encendidos. ← y → cambian de nave, `Enter` despega y `Tab`, en vuelo, vuelve
 |---|---|---:|---|---|
 | Raptor | `assets/nave_graficas.obj` | 39 168 | Blanco desgastado con franjas rojas (`ShipPaint::Classic`) | Puntas de las alas y cola |
 | Comet | `assets/birdship.obj` | 8 960 | Gris azulado con acentos naranja, motores azules | Bloque de motores bajo la cola |
-| Trident | `assets/nave.obj` | 802 | Grafito con acentos amarillos, motores violeta | Motor central y cápsulas laterales |
+| Stinger | `assets/nave.obj` | 802 | Grafito con acentos amarillos, motores violeta | Motor central y cápsulas laterales |
 
 - **Tabla de naves** (`src/ship/models.rs`): nombre, autor, archivo, toberas y pintura de
   cada una. La física, la cámara y el tamaño en el mundo son iguales para todas: cada
@@ -232,7 +232,7 @@ src/
 assets/
   nave_graficas.obj  nave Raptor (Blender, 39 168 triángulos)
   birdship.obj       nave Comet (Blender, 8 960 triángulos)
-  nave.obj           nave Trident (Blender, 802 triángulos)
+  nave.obj           nave Stinger (Blender, 802 triángulos)
   sphere.obj         esfera para las pruebas del cargador OBJ; la escena usa la icosfera
 ```
 

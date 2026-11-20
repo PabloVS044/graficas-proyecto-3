@@ -81,7 +81,7 @@ pub const SHIPS: &[ShipSpec] = &[
         }),
     },
     ShipSpec {
-        name: "Trident",
+        name: "Stinger",
         author: "Ivana",
         description: "Ala delta ligera, de pocos poligonos",
         path: "assets/nave.obj",
