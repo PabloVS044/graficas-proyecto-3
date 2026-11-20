@@ -111,7 +111,7 @@ impl Simulation {
                 }
             }
             let boosting = input.boost && input.thrust > 0.0;
-            self.exhaust.step(&self.ship, &scene.ship_model(&self.ship), boosting, STEP);
+            self.exhaust.step(&self.ship, &scene.ship_model(&self.ship), scene.ship_spec().nozzles, boosting, STEP);
             self.camera.step(&self.ship, &colliders, STEP);
             self.accumulator -= STEP;
         }

@@ -10,10 +10,12 @@
 mod camera;
 mod controls;
 mod exhaust;
+mod models;
 
 pub use camera::ChaseCamera;
 pub use controls::{PitchControl, read_input};
 pub use exhaust::Exhaust;
+pub use models::{SHIPS, ShipSpec};
 
 use raylib::math::Vector3;
 

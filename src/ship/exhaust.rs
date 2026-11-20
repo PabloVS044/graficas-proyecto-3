@@ -15,16 +15,6 @@ use super::Ship;
 use crate::math::Mat4;
 use crate::render::Sprite;
 
-/// Toberas en coordenadas del OBJ de la nave: las cuatro puntas de las alas (la
-/// nave tiene forma de X) y la cola del fuselaje.
-const NOZZLES: [Vector3; 5] = [
-    Vector3 { x: 10.6, y: 2.5, z: -1.5 },
-    Vector3 { x: -10.6, y: 2.5, z: -1.5 },
-    Vector3 { x: 10.4, y: -2.2, z: -1.5 },
-    Vector3 { x: -10.4, y: -2.2, z: -1.5 },
-    Vector3 { x: 0.0, y: 0.0, z: -2.2 },
-];
-
 /// Partículas por segundo con el turbo, entre todas las toberas.
 const SPAWN_RATE: f32 = 450.0;
 /// Velocidad con la que salen hacia atrás, respecto a la nave.
@@ -89,8 +79,9 @@ impl Exhaust {
     }
 
     /// Avanza las partículas `dt` segundos y, si `boosting`, suelta nuevas desde
-    /// las toberas. `model` es la matriz de modelo de la nave.
-    pub fn step(&mut self, ship: &Ship, model: &Mat4, boosting: bool, dt: f32) {
+    /// las toberas. `model` es la matriz de modelo de la nave y `nozzles`, sus
+    /// toberas en coordenadas del OBJ (cada nave tiene las suyas).
+    pub fn step(&mut self, ship: &Ship, model: &Mat4, nozzles: &[Vector3], boosting: bool, dt: f32) {
         let drag = (-DRAG * dt).exp();
         for particle in &mut self.particles {
             particle.age += dt;
@@ -99,7 +90,7 @@ impl Exhaust {
         }
         self.particles.retain(|particle| particle.age < particle.lifetime);
 
-        if !boosting {
+        if !boosting || nozzles.is_empty() {
             self.pending = 0.0;
             return;
         }
@@ -108,7 +99,7 @@ impl Exhaust {
         let backwards = -ship.forward();
         while self.pending >= 1.0 && self.particles.len() < MAX_PARTICLES {
             self.pending -= 1.0;
-            let nozzle = NOZZLES[(self.random() * NOZZLES.len() as f32) as usize % NOZZLES.len()];
+            let nozzle = nozzles[(self.random() * nozzles.len() as f32) as usize % nozzles.len()];
             let velocity =
                 ship.velocity + backwards * (EJECT_SPEED * (0.7 + self.random() * 0.6)) + self.random_direction() * SPREAD;
             // Nacen repartidas a lo largo del paso, no todas en el mismo punto.
@@ -158,6 +149,7 @@ mod tests {
     use crate::math::Quat;
 
     const DT: f32 = 1.0 / 120.0;
+    const NOZZLES: &[Vector3] = &[Vector3 { x: 1.0, y: 0.0, z: -2.0 }, Vector3 { x: -1.0, y: 0.0, z: -2.0 }];
 
     fn ship() -> Ship {
         let mut ship = Ship::new(Vector3::zero(), Quat::IDENTITY);
@@ -169,11 +161,11 @@ mod tests {
     fn only_boosting_makes_particles() {
         let mut exhaust = Exhaust::new();
         for _ in 0..60 {
-            exhaust.step(&ship(), &Mat4::IDENTITY, false, DT);
+            exhaust.step(&ship(), &Mat4::IDENTITY, NOZZLES, false, DT);
         }
         assert_eq!(exhaust.len(), 0);
         for _ in 0..60 {
-            exhaust.step(&ship(), &Mat4::IDENTITY, true, DT);
+            exhaust.step(&ship(), &Mat4::IDENTITY, NOZZLES, true, DT);
         }
         // Medio segundo a 450 por segundo, menos las que ya murieron.
         assert!(exhaust.len() > 150 && exhaust.len() <= 225, "{}", exhaust.len());
@@ -184,13 +176,13 @@ mod tests {
         let mut exhaust = Exhaust::new();
         let ship = ship();
         for _ in 0..30 {
-            exhaust.step(&ship, &Mat4::IDENTITY, true, DT);
+            exhaust.step(&ship, &Mat4::IDENTITY, NOZZLES, true, DT);
         }
         // Salen hacia atrás respecto a la nave (la punta mira hacia +z).
         assert!(exhaust.particles.iter().all(|p| (p.velocity - ship.velocity).z < 0.0));
 
         for _ in 0..(LIFETIME_MAX / DT) as usize + 2 {
-            exhaust.step(&ship, &Mat4::IDENTITY, false, DT);
+            exhaust.step(&ship, &Mat4::IDENTITY, NOZZLES, false, DT);
         }
         assert_eq!(exhaust.len(), 0, "sin turbo se apagan todas");
     }
@@ -200,7 +192,7 @@ mod tests {
         let run = || {
             let mut exhaust = Exhaust::new();
             for _ in 0..50 {
-                exhaust.step(&ship(), &Mat4::IDENTITY, true, DT);
+                exhaust.step(&ship(), &Mat4::IDENTITY, NOZZLES, true, DT);
             }
             exhaust.sprites().iter().map(|s| s.position).collect::<Vec<_>>()
         };

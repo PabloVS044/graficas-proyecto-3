@@ -18,6 +18,7 @@ mod volcanic;
 pub mod noise_helpers;
 
 pub use jungle::{is_forest, is_settlement};
+pub use ship::{Livery, ShipPaint};
 pub use ice::is_on_big_crack;
 pub use volcanic::is_solid_crust;
 
@@ -62,10 +63,10 @@ pub enum Material {
     Thatch,
     /// Pared de barro de una choza, con el fuego encendido en la puerta.
     HutWall { ground_up: Vector3 },
-    /// Casco desgastado con franjas rojas y motores encendidos.
+    /// Una nave con su pintura y motores encendidos.
     /// `throttle` va de 0 (reposo) a 1 (turbo); `heat`, de 0 (frío) a 1
     /// (al rojo vivo, junto al sol o a un planeta volcánico).
-    Ship { throttle: f32, heat: f32 },
+    Ship { throttle: f32, heat: f32, paint: ShipPaint },
     /// Pinta la normal como color. Sirve para revisar geometría.
     #[allow(dead_code, reason = "API pública que todavía no usa la escena de prueba")]
     Normals,
@@ -75,7 +76,7 @@ pub fn shade(material: &Material, fragment: &Fragment, frame: &FrameContext, obj
     match *material {
         Material::Lambert { albedo } => basic::lambert(albedo, fragment, frame),
         Material::Sun => sun::shade(fragment, frame, object),
-        Material::Ship { throttle, heat } => ship::shade(fragment, frame, throttle, heat),
+        Material::Ship { throttle, heat, paint } => ship::shade(fragment, frame, throttle, heat, paint),
         Material::Jungle => jungle::shade(fragment, frame, object),
         Material::Volcanic => volcanic::shade(fragment, frame, object),
         Material::GasGiant => gas_giant::shade(fragment, frame, object),

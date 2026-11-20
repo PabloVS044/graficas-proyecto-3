@@ -8,14 +8,16 @@ use raylib::math::Vector3;
 use super::planets::{MoonSpec, PLANETS, PlanetSpec, SUN};
 use super::surface::{self, Placement, PropMeshes};
 use super::{Collider, GRAVITY_PER_RADIUS, SceneObject, fit_to_radius, proximity};
-use crate::config::{RENDER_HEIGHT, SHIP_MODEL_PATH, SURFACE_SEED};
+use crate::config::{RENDER_HEIGHT, SURFACE_SEED};
 use crate::render::Camera;
 use crate::math::{Mat4, Quat};
-use crate::mesh::{Mesh, Normals, Obj, icosphere};
+use crate::mesh::{Mesh, icosphere};
 use crate::shaders::Material;
-use crate::ship::Ship;
+use crate::ship::{SHIPS, Ship, ShipSpec};
 
-/// Mitad de la envergadura de la nave, en unidades del mundo.
+/// Radio de la esfera que contiene a la nave, en unidades del mundo. Es igual
+/// para todas las naves: así la cámara y la colisión funcionan igual con
+/// cualquiera.
 const SHIP_RADIUS: f32 = 1.5;
 /// La nave empieza entre la segunda y la tercera órbita, mirando al sol.
 const SHIP_START: Vector3 = Vector3 { x: 0.0, y: 10.0, z: 122.0 };
@@ -40,7 +42,10 @@ pub enum Detail {
 pub struct SolarSystem {
     /// Una icosfera por nivel de subdivisión, de 0 a `MAX_SPHERE_LEVEL`.
     spheres: Vec<Arc<Mesh>>,
-    ship: Arc<Mesh>,
+    /// Una malla por nave de `SHIPS`.
+    ships: Vec<Arc<Mesh>>,
+    /// La nave elegida en el menú, índice en `SHIPS`.
+    ship_index: usize,
     props: PropMeshes,
     /// Objetos de superficie de cada planeta, en el orden de `PLANETS`.
     placements: Vec<Vec<Placement>>,
@@ -64,11 +69,31 @@ impl SolarSystem {
     pub fn load() -> Result<SolarSystem, String> {
         Ok(SolarSystem {
             spheres: (0..=MAX_SPHERE_LEVEL).map(|level| Arc::new(icosphere(level))).collect(),
-            ship: Arc::new(Obj::load(SHIP_MODEL_PATH)?.to_mesh(Normals::Authored)),
+            ships: SHIPS.iter().map(|spec| spec.load().map(Arc::new)).collect::<Result<_, _>>()?,
+            ship_index: 0,
             props: PropMeshes::build(),
             placements: place_surfaces(SURFACE_SEED),
             surface_seed: SURFACE_SEED,
         })
+    }
+
+    /// La nave elegida, índice en `SHIPS`.
+    pub fn ship_index(&self) -> usize {
+        self.ship_index
+    }
+
+    pub fn ship_spec(&self) -> &'static ShipSpec {
+        &SHIPS[self.ship_index]
+    }
+
+    /// Cambia la nave que se dibuja y de cuyas toberas sale el turbo.
+    pub fn select_ship(&mut self, index: usize) {
+        assert!(index < SHIPS.len(), "no hay nave {index}");
+        self.ship_index = index;
+    }
+
+    pub fn ship_triangles(&self, index: usize) -> usize {
+        self.ships[index].triangle_count()
     }
 
     pub fn surface_seed(&self) -> u32 {
@@ -180,7 +205,22 @@ impl SolarSystem {
     /// Matriz de modelo de la nave: lleva puntos del OBJ al mundo. Sirve también
     /// para saber dónde quedan sus motores.
     pub fn ship_model(&self, ship: &Ship) -> Mat4 {
-        Mat4::translation(ship.position) * Mat4::rotation(ship.orientation) * fit_to_radius(&self.ship, SHIP_RADIUS)
+        self.ship_model_of(self.ship_index, ship)
+    }
+
+    fn ship_model_of(&self, index: usize, ship: &Ship) -> Mat4 {
+        Mat4::translation(ship.position) * Mat4::rotation(ship.orientation) * fit_to_radius(&self.ships[index], SHIP_RADIUS)
+    }
+
+    /// La nave `index` de `SHIPS` lista para dibujar. La usa también el menú
+    /// para mostrar cada nave antes de elegirla.
+    pub fn ship_object(&self, index: usize, ship: &Ship, heat: f32) -> SceneObject {
+        SceneObject {
+            name: SHIPS[index].name,
+            mesh: self.ships[index].clone(),
+            model: self.ship_model_of(index, ship),
+            material: Material::Ship { throttle: ship.throttle, heat, paint: SHIPS[index].paint },
+        }
     }
 
     /// Los objetos a dibujar en el instante `time`, vistos desde `camera`.
@@ -211,12 +251,7 @@ impl SolarSystem {
             }
         }
 
-        objects.push(SceneObject {
-            name: "Nave",
-            mesh: self.ship.clone(),
-            model: self.ship_model(ship),
-            material: Material::Ship { throttle: ship.throttle, heat: self.ship_heat(time, ship.position) },
-        });
+        objects.push(self.ship_object(self.ship_index, ship, self.ship_heat(time, ship.position)));
 
         objects
     }
