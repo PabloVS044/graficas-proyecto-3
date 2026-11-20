@@ -4,7 +4,7 @@
 //! viaja pegada a la nave. La iluminación y el calor son iguales para todas; la
 //! pintura y dónde están las toberas dependen de `ShipPaint`.
 //!
-//! `ShipPaint::Classic` está ajustada a la forma de la Centella (`nave_graficas.obj`)
+//! `ShipPaint::Classic` está ajustada a la forma de la Comet (`nave_graficas.obj`)
 //! (unidades del OBJ):
 //!
 //! - fuselaje: `|x| < 1`, de la cola (`z = -2.2`) a la punta (`z = 5.4`);
