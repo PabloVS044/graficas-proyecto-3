@@ -3,15 +3,59 @@
 Sistema solar pequeño que se explora desde una nave, dibujado con un renderer por
 software escrito en Rust. Proyecto final de Gráficas por Computadora 2026.
 
-`raylib` se usa solo para abrir la ventana, leer el teclado, mostrar el framebuffer y
-escribir el texto del HUD. Las matrices de modelo, vista y proyección, la
-rasterización, la prueba de profundidad y los shaders están escritos en este
-repositorio.
+`raylib` se usa solo para abrir la ventana, leer el teclado, mostrar el framebuffer,
+escribir el texto del HUD y reproducir el audio. Las matrices de modelo, vista y
+proyección, la rasterización, la prueba de profundidad, los shaders y la síntesis del
+sonido están escritos en este repositorio.
 
 **Estado:** renderer, vuelo de la nave en tercera persona y sistema solar con cinco
 planetas y una luna. El sol y cada planeta tienen su propio shader, y todos reaccionan
 cuando la nave se acerca. Tres planetas tienen objetos sobre su superficie, repartidos
-con una semilla.
+con una semilla. El sonido se sintetiza en código.
+
+**Video del recorrido:** <!-- TODO: enlace al video --> _pendiente_
+
+## Integrantes
+
+<!-- TODO: completar los nombres reales -->
+
+| Integrante | Contribución |
+|---|---|
+| _Nombre_ (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. |
+| _Nombre_ (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. |
+| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. |
+
+## Características que solicitamos evaluar
+
+| Categoría | Característica | Pts | Dónde verla |
+|---|---|---:|---|
+| Planetas | 5 planetas distinguibles que orbitan, rotan y se ven de cerca: Jungla, Ambar, Kryos, Ignis y Eco | 50 | Volar hacia cada uno; `src/scene/planets.rs` |
+| Superficie | 4 tipos de modelo propio: árbol y choza (Jungla), roca de basalto (Ignis), cristal de hielo (Kryos) | 20 | Bajar a la superficie; `src/mesh/shapes.rs` |
+| Superficie | Distribución procedural reproducible con ruido y semilla | 10 | `N` cambia la semilla; `scene::surface::place` |
+| Superficie | Posición y orientación sobre la superficie curva mientras el planeta rota | 5 | `scene::surface::surface_frame` |
+| Renderizado | Shaders propios distintos: sol, Jungla, Ambar, Kryos, Ignis, Eco, luna, nave y objetos de superficie | 24 | `src/shaders/` |
+| Renderizado | Shaders animados: plasma del sol, nubes de Jungla, lava de Ignis, tormenta de Ambar, auroras | 8 | Todos dependen de `FrameContext::time` |
+| Renderizado | Generación y subdivisión de geometría antes de rasterizar (icosfera) | 10 | `src/mesh/icosphere.rs` |
+| Navegación | Modo orbital para rodear un planeta sin cortar el vuelo | 8 | `O` cerca de un planeta; `Ship::step_orbit` |
+| Navegación | Aceleración, frenado y giro progresivos, iguales en cualquier equipo | 8 | Pasos fijos en `src/simulation.rs` |
+| Navegación | Atracción gravitatoria que desvía la nave | 10 | `G` la apaga; `ship::gravity_at` |
+| Navegación | Colisión que impide atravesar los planetas | 4 | `Ship::collide` |
+| Rendimiento | Descarte de objetos fuera de la vista, con contadores | 7 | `F` lo apaga; `src/render/frustum.rs` |
+| Rendimiento | Niveles de detalle según la distancia, con contadores | 8 | `L` lo apaga; `SolarSystem::sphere_level` |
+| Presentación | Coherencia visual y recorrido claro (nombres de planetas, contador de descubiertos, sonido) | — | A criterio del profesor |
+
+## Uso de IA y recursos externos
+
+<!-- TODO: confirmar con todo el equipo -->
+
+- **IA:** usamos asistencia de IA para escribir y revisar parte del código y de la
+  documentación. Revisamos lo entregado y podemos explicar cómo funciona.
+- **Bibliotecas:** `raylib` (ventana, teclado, mostrar el framebuffer, texto y
+  reproducción de audio), `noise` (ruido OpenSimplex) y `rayon` (repartir trabajo entre
+  hilos).
+- **Recursos:** la nave (`assets/nave_graficas.obj`) se modeló en Blender. Los objetos de
+  superficie y las esferas se generan en código. No hay imágenes ni archivos de audio
+  externos: el sonido se sintetiza en `src/audio/synth.rs`.
 
 ## Planetas
 
@@ -74,6 +118,8 @@ $env:BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files (x86)/Microsoft Visual Stud
 | `O` | Cerca de un planeta: entrar o salir del modo orbital |
 | `G` | Gravedad: activa o apagada |
 | `N` | Otra semilla para repartir los objetos de la superficie |
+| `H` | HUD completo, mínimo u oculto (para grabar) |
+| `M` | Silenciar o activar el sonido |
 
 La aceleración y los giros son progresivos. La física avanza en pasos fijos de 1/120 s,
 así que la nave responde igual sin importar cuántos cuadros por segundo dibuje el equipo.
@@ -94,6 +140,19 @@ No se puede atravesar el sol ni los planetas.
   motor suelta chispas que se enfrían de blanco a rojo y quedan como estela. Avanzan en
   los pasos fijos de la física con una semilla fija, y el renderer las dibuja después de
   los objetos como discos de luz: prueban la profundidad sin escribirla y suman su color.
+
+### Sonido
+
+Todo el sonido se calcula en `src/audio/synth.rs`, muestra por muestra; `raylib` solo lo
+reproduce.
+
+- **Capa continua, en tiempo real:** un zumbido grave del espacio, el motor (tono y
+  retumbe que suben con el acelerador), el siseo del turbo y chasquidos de calor junto a
+  Ignis o al sol. Cada cuadro se le pasan los parámetros de la nave y, cuando raylib
+  terminó de tocar un bloque de muestras, se calcula el siguiente.
+- **Efectos:** acorde al descubrir un planeta, barrido de tono al entrar o salir del modo
+  orbital, clic al cambiar una opción y alarma de temperatura. Se generan al arrancar y
+  se cargan como WAV desde memoria.
 
 ## Superficie
 
