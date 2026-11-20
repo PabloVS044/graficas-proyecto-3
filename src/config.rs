@@ -23,6 +23,8 @@ pub const NOISE_SEED: u32 = 7;
 /// pasa a la siguiente.
 pub const SURFACE_SEED: u32 = 1;
 
+/// Nave para las pruebas del cargador OBJ. Las naves del juego están en `ship::SHIPS`.
+#[cfg(test)]
 pub const SHIP_MODEL_PATH: &str = "assets/nave_graficas.obj";
 /// Esfera para las pruebas del cargador OBJ. La escena usa la icosfera.
 #[cfg(test)]

@@ -21,9 +21,9 @@ con una semilla. El sonido se sintetiza en código.
 
 | Integrante | Contribución |
 |---|---|
-| _Nombre_ (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. |
-| _Nombre_ (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. |
-| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. |
+| _Nombre_ (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. Modelo de la nave Raptor y menú de selección de naves. |
+| _Nombre_ (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. Modelo de la nave Comet. |
+| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. Modelo de la nave Stinger. |
 
 ## Características que solicitamos evaluar
 
@@ -53,7 +53,8 @@ con una semilla. El sonido se sintetiza en código.
 - **Bibliotecas:** `raylib` (ventana, teclado, mostrar el framebuffer, texto y
   reproducción de audio), `noise` (ruido OpenSimplex) y `rayon` (repartir trabajo entre
   hilos).
-- **Recursos:** la nave (`assets/nave_graficas.obj`) se modeló en Blender. Los objetos de
+- **Recursos:** las tres naves (`assets/nave_graficas.obj`, `assets/birdship.obj` y
+  `assets/nave.obj`) las modelamos en Blender. Los objetos de
   superficie y las esferas se generan en código. No hay imágenes ni archivos de audio
   externos: el sonido se sintetiza en `src/audio/synth.rs`.
 
@@ -83,7 +84,7 @@ ventanas.
 ```bash
 cargo run --release                          # ventana
 cargo run --release -- --benchmark           # ms por cuadro en poses fijas de la nave, sin ventana
-cargo run --release -- --screenshot captura  # poses de la nave, cada planeta y la nave de cerca
+cargo run --release -- --screenshot captura  # cada nave (menú, vuelo y planta), cada planeta, poses fijas
 cargo test --release                         # pruebas
 ```
 
@@ -110,6 +111,9 @@ $env:BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files (x86)/Microsoft Visual Stud
 | `I` | Invertir las flechas arriba y abajo (arriba sube) |
 | `A` / `D` | Alabear (girar sobre su eje) |
 | `Shift` | Turbo |
+| ← / → (en el menú) | Cambiar de nave |
+| `Enter` (en el menú) | Despegar con la nave elegida |
+| `Tab` | Volver al menú para cambiar de nave |
 | `C` | Inspeccionar: orbitar alrededor de la nave con flechas y rueda; otra vez `C` para volver |
 | `R` | Volver la nave al inicio |
 | Espacio | Pausar la simulación |
@@ -154,6 +158,28 @@ reproduce.
   orbital, clic al cambiar una opción y alarma de temperatura. Se generan al arrancar y
   se cargan como WAV desde memoria.
 
+## Naves
+
+Al abrir el juego aparece un menú para elegir la nave. La vista previa no es una
+imagen: es la nave girando, dibujada con el mismo renderer y su shader, con los motores
+encendidos. ← y → cambian de nave, `Enter` despega y `Tab`, en vuelo, vuelve al menú.
+
+| Nave | Modelo | Triángulos | Pintura | Toberas |
+|---|---|---:|---|---|
+| Raptor | `assets/nave_graficas.obj` | 39 168 | Blanco desgastado con franjas rojas (`ShipPaint::Classic`) | Puntas de las alas y cola |
+| Comet | `assets/birdship.obj` | 8 960 | Gris azulado con acentos naranja, motores azules | Bloque de motores bajo la cola |
+| Stinger | `assets/nave.obj` | 802 | Grafito con acentos amarillos, motores violeta | Motor central y cápsulas laterales |
+
+- **Tabla de naves** (`src/ship/models.rs`): nombre, autor, archivo, toberas y pintura de
+  cada una. La física, la cámara y el tamaño en el mundo son iguales para todas: cada
+  modelo se escala para que quepa en la misma esfera (`SHIP_RADIUS`).
+- **Pintura** (`src/shaders/ship.rs`): la iluminación y el calor del casco son comunes.
+  `ShipPaint::Classic` está ajustada a la forma de la nave Raptor; `ShipPaint::Livery`
+  sirve para cualquier modelo y se configura con colores y unas pocas medidas (ancho de
+  la franja del lomo, dónde empiezan las puntas de las alas y detrás de qué `z` están las
+  toberas).
+- **Turbo:** las partículas salen de las toberas de la nave elegida.
+
 ## Superficie
 
 Jungla, Ignis y Kryos tienen objetos sobre su superficie. Los modelos se generan en
@@ -189,6 +215,7 @@ que las copias no sean iguales.
 ```
 src/
   main.rs            ventana, bucle, --benchmark y --screenshot
+  menu.rs            menú de selección de naves con vista previa 3D
   config.rs          resolución, campo de visión, planos, semilla, rutas
   math/              Mat4 y Quat propios
   mesh/              Vertex, Mesh, esfera envolvente, cargador OBJ, icosfera
@@ -199,10 +226,13 @@ src/
     planets.rs       datos de cada cuerpo: radio, órbita, giro, material, lunas, superficie
     surface.rs       reparto y orientación de los objetos de superficie
   ship/              física de la nave, cámara en tercera persona y controles
+    models.rs        tabla de naves: modelo, toberas y pintura de cada una
   simulation.rs      avance del mundo en pasos fijos
   shaders/           Material, shaders y funciones de ruido
 assets/
-  nave_graficas.obj  la nave (Blender, 39 168 triángulos)
+  nave_graficas.obj  nave Raptor (Blender, 39 168 triángulos)
+  birdship.obj       nave Comet (Blender, 8 960 triángulos)
+  nave.obj           nave Stinger (Blender, 802 triángulos)
   sphere.obj         esfera para las pruebas del cargador OBJ; la escena usa la icosfera
 ```
 
@@ -242,15 +272,21 @@ Para que las tres partes del proyecto encajen:
 - **Un planeta:** agregar una entrada a `PLANETS` en `src/scene/planets.rs` con su
   radio, órbita, giro y material. Con eso ya orbita, gira, se dibuja y la nave choca con
   él. `cargo test` revisa que su órbita no choque con las vecinas.
-- **La apariencia de un planeta:** por ahora cada uno usa `Material::Lambert` con un
-  color liso. Para darle apariencia propia, se crea su shader (ver el punto anterior) y
-  se pone en el campo `material` de su entrada. Ejemplo: `src/shaders/ship.rs`.
+- **La apariencia de un planeta:** se crea su shader (ver el punto anterior) y se pone en
+  el campo `material` de su entrada. Ejemplos: `src/shaders/jungle.rs`, `ice.rs`,
+  `volcanic.rs`.
 - **Un objeto sobre un planeta:** su matriz de modelo es
   `SolarSystem::planet_frame(planeta, tiempo) * posición_local`. Así orbita y gira con el
   planeta. Para repartir muchos, se agrega un `Prop` en `src/scene/surface.rs` con su
   malla y su material, y una entrada en el campo `surface` del planeta.
 - **Un objeto:** construir un `SceneObject` con su malla (`Arc<Mesh>`, compartida entre
   copias), su matriz de modelo y su material, y agregarlo a la lista del cuadro.
+- **Una nave:** exportarla de Blender como OBJ con normales y la punta hacia `+z`, ponerla
+  en `assets/` y agregar una entrada a `SHIPS` en `src/ship/models.rs` con sus toberas y
+  su pintura (`ShipPaint::Livery`). Si quedó con la punta hacia `-z`, `turn_around: true`
+  la gira. `--screenshot` guarda una vista desde arriba de cada nave
+  (`<prefijo>-planta-<nave>.png`) con la punta hacia arriba, para revisarla; `cargo test`
+  revisa que sus toberas queden atrás y cerca del casco.
 - **Un modelo de Blender:** exportar OBJ con triángulos o polígonos y normales, ponerlo
   en `assets/` y cargarlo con `Obj::load(ruta)?.to_mesh(Normals::Authored)`.
   `Normals::Smooth` promedia normales para superficies curvas.

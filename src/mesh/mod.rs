@@ -42,6 +42,19 @@ impl Mesh {
     pub fn triangle_count(&self) -> usize {
         self.vertices.len() / 3
     }
+
+    /// La misma malla girada media vuelta sobre `y`: `x` y `z` cambian de
+    /// signo. Sirve para modelos exportados con la punta hacia `-z`. Es una
+    /// rotación, así que los triángulos siguen siendo antihorarios.
+    pub fn turned_around(self) -> Mesh {
+        let turn = |v: Vector3| Vector3::new(-v.x, v.y, -v.z);
+        let vertices = self
+            .vertices
+            .into_iter()
+            .map(|vertex| Vertex { position: turn(vertex.position), normal: turn(vertex.normal), uv: vertex.uv })
+            .collect();
+        Mesh::new(vertices)
+    }
 }
 
 /// Centro de la caja que contiene a los vértices y el radio hasta el más lejano.

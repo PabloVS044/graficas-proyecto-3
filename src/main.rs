@@ -2,6 +2,7 @@ mod audio;
 mod config;
 #[allow(dead_code, reason = "API pública que todavía no usa la escena de prueba")]
 mod math;
+mod menu;
 mod mesh;
 mod render;
 mod scene;
@@ -18,10 +19,11 @@ use raylib::prelude::*;
 
 use config::{FAR_PLANE, FIELD_OF_VIEW, NEAR_PLANE, NOISE_SEED, RENDER_HEIGHT, RENDER_WIDTH, WINDOW_SCALE};
 use math::Quat;
+use menu::{MenuAction, ShipMenu};
 use render::{Background, Camera, FrameContext, Framebuffer, OrbitController, RenderStats, Sprite};
 use scene::{Detail, SolarSystem};
 use scene::planets::PLANETS;
-use ship::{ChaseCamera, PitchControl, Ship, ShipInput};
+use ship::{ChaseCamera, PitchControl, SHIPS, Ship, ShipInput};
 use simulation::Simulation;
 
 /// Todo lo que se carga una sola vez al inicio.
@@ -54,6 +56,13 @@ impl World {
         .with_culling(options.culling);
         let objects = self.scene.objects(time, ship, camera, options.detail);
         render::render_frame(framebuffer, &self.background, &objects, sprites, &frame)
+    }
+
+    /// La vista previa del menú: solo la nave elegida, girando sobre el fondo.
+    fn render_menu(&self, framebuffer: &mut Framebuffer, menu: &ShipMenu, time: f32) -> RenderStats {
+        let (camera, objects, light) = menu.preview(&self.scene, time);
+        let frame = FrameContext::new(&camera, framebuffer.width, framebuffer.height, time, light, &self.noise);
+        render::render_frame(framebuffer, &self.background, &objects, &[], &frame)
     }
 }
 
@@ -123,7 +132,7 @@ fn main() {
     }
     if let Some(index) = args.iter().position(|arg| arg == "--screenshot") {
         let prefix = args.get(index + 1).map_or("captura", String::as_str);
-        screenshots(&world, prefix);
+        screenshots(&mut world, prefix);
         return;
     }
 
@@ -146,6 +155,9 @@ fn run_window(world: &mut World) {
     let mut pitch_control = PitchControl::Aircraft;
     let mut options = Options::DEFAULT;
     let mut hud = Hud::Full;
+    // El juego empieza en el menú de naves. `Some` mientras se está eligiendo.
+    let mut menu = Some(ShipMenu::new(world.scene.ship_index()));
+    let mut menu_time = 0.0;
 
     // Sin dispositivo de audio el juego sigue, en silencio.
     let audio = RaylibAudio::init_audio_device().ok();
@@ -156,15 +168,51 @@ fn run_window(world: &mut World) {
     while !window.window_should_close() {
         let frame_time = window.get_frame_time();
 
+        if window.is_key_pressed(KeyboardKey::KEY_M) {
+            sound.iter_mut().for_each(Soundscape::toggle_mute);
+        }
+
+        if let Some(choosing) = &mut menu {
+            let action = choosing.update(&window);
+            if action != MenuAction::None {
+                sound.iter().for_each(|sound| sound.play(Cue::Toggle));
+            }
+            if let Some(sound) = &mut sound {
+                sound.update(EngineParams { throttle: 0.0, boost: 0.0, heat: 0.0 }, frame_time);
+            }
+
+            menu_time += frame_time;
+            world.render_menu(&mut framebuffer, choosing, menu_time);
+            framebuffer.upload();
+            let mut drawing = window.begin_drawing(&thread);
+            framebuffer.draw(&mut drawing, WINDOW_SCALE as f32);
+            choosing.draw(&mut drawing, &world.scene);
+            draw_muted(&mut drawing, sound.as_ref());
+            drop(drawing);
+
+            if action == MenuAction::Launch {
+                // La nave elegida empieza desde el inicio; el sistema solar sigue
+                // donde estaba.
+                world.scene.select_ship(choosing.selected);
+                simulation.reset_ship(&world.scene);
+                view = View::Chase;
+                menu = None;
+            }
+            continue;
+        }
+
+        if window.is_key_pressed(KeyboardKey::KEY_TAB) {
+            sound.iter().for_each(|sound| sound.play(Cue::Toggle));
+            menu = Some(ShipMenu::new(world.scene.ship_index()));
+            menu_time = 0.0;
+            continue;
+        }
+
         // Teclas que cambian una opción: suenan con un clic.
         let toggles = [KeyboardKey::KEY_I, KeyboardKey::KEY_L, KeyboardKey::KEY_G, KeyboardKey::KEY_F, KeyboardKey::KEY_N, KeyboardKey::KEY_H, KeyboardKey::KEY_C];
         if toggles.iter().any(|key| window.is_key_pressed(*key)) {
             sound.iter().for_each(|sound| sound.play(Cue::Toggle));
         }
-        if window.is_key_pressed(KeyboardKey::KEY_M) {
-            sound.iter_mut().for_each(Soundscape::toggle_mute);
-        }
-
         if window.is_key_pressed(KeyboardKey::KEY_SPACE) {
             simulation.paused = !simulation.paused;
         }
@@ -252,10 +300,15 @@ fn run_window(world: &mut World) {
             Hud::Hidden => {}
         }
         draw_exploration(&mut drawing, &world.scene, &simulation);
-        if sound.as_ref().is_some_and(Soundscape::muted) {
-            let width = (RENDER_WIDTH * WINDOW_SCALE) as i32;
-            drawing.draw_text("SILENCIO (M)", width - 160, 34, 20, Color::GRAY);
-        }
+        draw_muted(&mut drawing, sound.as_ref());
+    }
+}
+
+/// Aviso de sonido apagado, arriba a la derecha.
+fn draw_muted(drawing: &mut RaylibDrawHandle, sound: Option<&Soundscape>) {
+    if sound.is_some_and(Soundscape::muted) {
+        let width = (RENDER_WIDTH * WINDOW_SCALE) as i32;
+        drawing.draw_text("SILENCIO (M)", width - 160, 34, 20, Color::GRAY);
     }
 }
 
@@ -365,7 +418,7 @@ fn draw_mode(drawing: &mut RaylibDrawHandle, scene: &SolarSystem, simulation: &S
 fn draw_controls(drawing: &mut RaylibDrawHandle, simulation: &Simulation, view: View, window_height: i32) {
     let controls = match view {
         View::Chase if simulation.orbit.is_some() => "W/S: acelerar/frenar   Izq/Der: rumbo   Arriba/Abajo: altura   Shift: turbo   O: vuelo libre   H: HUD   Espacio: pausa",
-        View::Chase => "W/S: acelerar   Flechas: dirigir   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   N: semilla   H: HUD   M: sonido",
+        View::Chase => "W/S: acelerar   Flechas: dirigir   A/D: girar   Shift: turbo   O: orbitar   G: gravedad   N: semilla   H: HUD   Tab: nave",
         View::Inspect => "Flechas: orbitar la nave   Rueda: acercar   R: reiniciar vista   C: volver a la nave   H: HUD   Espacio: pausa",
     };
     drawing.draw_text(controls, 10, window_height - 30, 20, Color::LIGHTGRAY);
@@ -413,8 +466,52 @@ fn benchmark(world: &World) {
 }
 
 /// Guarda una captura por pose fija: `<prefijo>-<vista>.png`.
-fn screenshots(world: &World, prefix: &str) {
+fn screenshots(world: &mut World, prefix: &str) {
     let mut framebuffer = Framebuffer::new(RENDER_WIDTH, RENDER_HEIGHT);
+
+    // Cada nave: en el menú y en vuelo, de lado y desde atrás con el turbo.
+    for (index, spec) in SHIPS.iter().enumerate() {
+        let name = spec.name.to_lowercase();
+        world.render_menu(&mut framebuffer, &ShipMenu::new(index), 1.2);
+        let path = format!("{prefix}-menu-{name}.png");
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
+
+        world.scene.select_ship(index);
+        let mut ship = world.scene.ship_start();
+        ship.velocity = ship.forward() * 40.0;
+        ship.throttle = 1.0;
+        let mut exhaust = ship::Exhaust::new();
+        for _ in 0..40 {
+            ship.position += ship.velocity * simulation::STEP;
+            exhaust.step(&ship, &world.scene.ship_model(&ship), spec.nozzles, true, simulation::STEP);
+        }
+        for (view, yaw, distance) in [("lado", 1.3, 7.0), ("cola", 0.35, 5.5)] {
+            let orbit = OrbitController { target: ship.position, yaw: yaw + std::f32::consts::PI, pitch: 0.3, distance };
+            let camera = orbit.camera(FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
+            world.render(&mut framebuffer, &camera, 0.0, &ship, &exhaust.sprites(), Options::DEFAULT);
+            let path = format!("{prefix}-vuelo-{name}-{view}.png");
+            framebuffer.export(&path);
+            println!("Captura guardada en {path}");
+        }
+
+        // Vista de planta: desde arriba, con la punta hacia el borde de arriba
+        // de la imagen. Sirve para revisar que una nave nueva no quedó al revés.
+        let ship = Ship::new(Vector3::new(0.0, 0.0, 300.0), Quat::IDENTITY);
+        let camera = Camera {
+            position: ship.position + Vector3::new(0.0, 4.5, 0.0),
+            target: ship.position,
+            up: Vector3::new(0.0, 0.0, 1.0),
+            field_of_view: FIELD_OF_VIEW.to_radians(),
+            near: NEAR_PLANE,
+            far: FAR_PLANE,
+        };
+        world.render(&mut framebuffer, &camera, 0.0, &ship, &[], Options::DEFAULT);
+        let path = format!("{prefix}-planta-{name}.png");
+        framebuffer.export(&path);
+        println!("Captura guardada en {path}");
+    }
+    world.scene.select_ship(0);
     for (name, ship) in fixed_views(world) {
         let camera = ChaseCamera::behind(&ship).camera(&ship, FIELD_OF_VIEW.to_radians(), NEAR_PLANE, FAR_PLANE);
         world.render(&mut framebuffer, &camera, 0.0, &ship, &[], Options::DEFAULT);
@@ -500,7 +597,7 @@ fn screenshots(world: &World, prefix: &str) {
     let mut exhaust = ship::Exhaust::new();
     for _ in 0..60 {
         ship.position += ship.velocity * simulation::STEP;
-        exhaust.step(&ship, &world.scene.ship_model(&ship), true, simulation::STEP);
+        exhaust.step(&ship, &world.scene.ship_model(&ship), world.scene.ship_spec().nozzles, true, simulation::STEP);
     }
     for (name, yaw, distance) in [("nave-turbo", 1.2, 9.0), ("nave-turbo-cola", 0.25, 6.0)] {
         let orbit = OrbitController { target: ship.position, yaw: yaw + std::f32::consts::PI, pitch: 0.3, distance };
