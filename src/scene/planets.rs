@@ -9,7 +9,7 @@
 //! velocidades en radianes por segundo de simulación.
 
 use super::surface::{Ground, Prop, SurfaceSpec};
-use crate::shaders::{Material, color};
+use crate::shaders::Material;
 
 pub struct SunSpec {
     pub radius: f32,
@@ -107,7 +107,7 @@ pub const PLANETS: &[PlanetSpec] = &[
             orbit_speed: 0.4,
             orbit_phase: 1.0,
             orbit_tilt: 0.35,
-            material: Material::Lambert { albedo: color(0.65, 0.65, 0.65) },
+            material: Material::Moon,
         }],
         surface: &[],
     },
