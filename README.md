@@ -13,7 +13,7 @@ planetas y una luna. El sol y cada planeta tienen su propio shader, y todos reac
 cuando la nave se acerca. Tres planetas tienen objetos sobre su superficie, repartidos
 con una semilla. El sonido se sintetiza en código.
 
-**Video del recorrido:** <!-- TODO: enlace al video --> _pendiente_
+**Video del recorrido:** https://youtu.be/klRDVPa6hzc
 
 ## Integrantes
 
