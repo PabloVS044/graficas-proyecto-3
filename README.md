@@ -13,17 +13,23 @@ planetas y una luna. El sol y cada planeta tienen su propio shader, y todos reac
 cuando la nave se acerca. Tres planetas tienen objetos sobre su superficie, repartidos
 con una semilla. El sonido se sintetiza en código.
 
-**Video del recorrido:** <!-- TODO: enlace al video --> _pendiente_
+## Video del recorrido
+
+<p align="center">
+  <a href="https://youtu.be/klRDVPa6hzc">
+    <img src="https://img.youtube.com/vi/klRDVPa6hzc/maxresdefault.jpg" alt="Video del recorrido" width="720">
+  </a>
+</p>
+
+<p align="center"><a href="https://youtu.be/klRDVPa6hzc">Ver el video en YouTube</a></p>
 
 ## Integrantes
 
-<!-- TODO: completar los nombres reales -->
-
 | Integrante | Contribución |
 |---|---|
-| _Nombre_ (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. Modelo de la nave Raptor y menú de selección de naves. |
-| _Nombre_ (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. Modelo de la nave Comet. |
-| _Nombre_ (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. Modelo de la nave Stinger. |
+| Pablo Vásquez (`PabloVS044`) | Base del renderer: matrices y cuaterniones, mallas y cargador OBJ, pipeline, recorte contra el plano cercano y profundidad. Vuelo de la nave: física, colisión, cámara en tercera persona, controles y simulación en pasos fijos. Shader de la nave, sistema solar con cinco planetas y shader de Jungla. Modelo de la nave Raptor y menú de selección de naves. |
+| Jonathan Tubac (`JonathanTubac`) | Shaders del sol, Ambar, Kryos, Ignis, Eco y la luna, y su reacción a la nave (`proximity`). Icosfera, niveles de detalle y descarte fuera de la vista. Gravedad, modo orbital y partículas del turbo. Sonido sintetizado y HUD. Modelo de la nave Comet. |
+| Ivana Figueroa (`IvanaFD`) | Objetos de superficie: árboles, chozas, rocas de basalto y cristales de hielo generados en código, su reparto con semilla, su orientación sobre la esfera, su aparición al acercarse y sus shaders. Capturas a ras del suelo. Modelo de la nave Stinger. |
 
 ## Características que solicitamos evaluar
 
@@ -46,10 +52,10 @@ con una semilla. El sonido se sintetiza en código.
 
 ## Uso de IA y recursos externos
 
-<!-- TODO: confirmar con todo el equipo -->
-
-- **IA:** usamos asistencia de IA para escribir y revisar parte del código y de la
-  documentación. Revisamos lo entregado y podemos explicar cómo funciona.
+- **IA:** usamos Claude Code con el modelo Claude Opus 5.5 para escribir y revisar parte
+  del código, proponer opciones para mejorar el rendimiento y la visibilidad del juego,
+  corregir errores que aparecían durante el desarrollo y ordenar la documentación. Cada
+  integrante revisó el código de su parte y entiende su funcionamiento.
 - **Bibliotecas:** `raylib` (ventana, teclado, mostrar el framebuffer, texto y
   reproducción de audio), `noise` (ruido OpenSimplex) y `rayon` (repartir trabajo entre
   hilos).
