@@ -44,10 +44,10 @@ con una semilla. El sonido se sintetiza en código.
 
 ## Uso de IA y recursos externos
 
-<!-- TODO: confirmar con todo el equipo -->
-
-- **IA:** usamos asistencia de IA para escribir y revisar parte del código y de la
-  documentación. Revisamos lo entregado y podemos explicar cómo funciona.
+- **IA:** usamos Claude Code con el modelo Claude Opus 5.5 para escribir y revisar parte
+  del código, proponer opciones para mejorar el rendimiento y la visibilidad del juego,
+  corregir errores que aparecían durante el desarrollo y ordenar la documentación. Cada
+  integrante revisó el código de su parte y entiende su funcionamiento.
 - **Bibliotecas:** `raylib` (ventana, teclado, mostrar el framebuffer, texto y
   reproducción de audio), `noise` (ruido OpenSimplex) y `rayon` (repartir trabajo entre
   hilos).
